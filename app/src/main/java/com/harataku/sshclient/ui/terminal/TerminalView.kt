@@ -104,24 +104,23 @@ class TerminalView @JvmOverloads constructor(
                     cursorRepeatHandler.postDelayed(cursorRepeatRunnable, 400)
                 }
             } else {
-                // Vertical swipe → scroll
+                // Vertical swipe → cursor up/down
                 swipeAccumY += -distanceY
-                val rowDelta = (swipeAccumY / charHeight).toInt()
-                if (rowDelta != 0) {
-                    adjustScroll(rowDelta)
-                    swipeAccumY -= rowDelta * charHeight
+                val steps = (swipeAccumY / charHeight).toInt()
+                if (steps != 0) {
+                    val dir = if (steps > 0) "\u001b[B" else "\u001b[A"
+                    repeat(abs(steps)) { terminalSession?.writeInput(dir) }
+                    swipeAccumY -= steps * charHeight
+                    lastCursorDirection = dir
+                    cursorRepeatHandler.removeCallbacks(cursorRepeatRunnable)
+                    cursorRepeatHandler.postDelayed(cursorRepeatRunnable, 400)
                 }
             }
             return true
         }
 
         override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
-            if (selecting || swipeHorizontal) return true
-            val maxScroll = terminalSession?.let {
-                synchronized(it.lock) { it.emulator.screen.activeTranscriptRows }
-            } ?: 0
-            scroller.fling(0, scrollOffset, 0, (velocityY / charHeight).toInt(), 0, 0, 0, maxScroll)
-            postInvalidateOnAnimation()
+            // Fling disabled — all swipes are cursor movement
             return true
         }
 
