@@ -74,6 +74,13 @@ class SshSessionManager {
     }
 
     /**
+     * Kill (delete) a tmux session by name.
+     */
+    suspend fun killTmuxSession(sessionName: String) = withContext(Dispatchers.IO) {
+        exec("tmux kill-session -t ${sessionName.replace("'", "'\\''")}")
+    }
+
+    /**
      * Open a shell and attach to the given tmux session.
      */
     suspend fun startTmuxShell(sessionName: String) = withContext(Dispatchers.IO) {

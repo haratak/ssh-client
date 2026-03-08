@@ -78,9 +78,14 @@ class TerminalView @JvmOverloads constructor(
         }
     }
 
+    // Two-finger scroll state
+    private var twoFingerScrolling = false
+    private var twoFingerLastY = 0f
+    private var twoFingerAccumY = 0f
+
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
-            if (selecting) return true
+            if (selecting || twoFingerScrolling) return true
 
             // Determine direction on first scroll event
             if (!swiping) {
@@ -120,7 +125,6 @@ class TerminalView @JvmOverloads constructor(
         }
 
         override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
-            // Fling disabled — all swipes are cursor movement
             return true
         }
 
@@ -129,6 +133,16 @@ class TerminalView @JvmOverloads constructor(
                 clearSelection()
                 return true
             }
+
+            // Send mouse click at tap position for vim/oil.nvim support
+            val col = (e.x / charWidth).toInt().coerceAtLeast(0) + 1 // 1-based
+            val row = (e.y / charHeight).toInt().coerceAtLeast(0) + 1 // 1-based
+            // SGR mouse press: \e[<0;col;rowM  release: \e[<0;col;rowm
+            val press = "\u001b[<0;${col};${row}M"
+            val release = "\u001b[<0;${col};${row}m"
+            terminalSession?.writeInput(press)
+            terminalSession?.writeInput(release)
+
             requestFocus()
             val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.showSoftInput(this@TerminalView, InputMethodManager.SHOW_IMPLICIT)
@@ -283,19 +297,56 @@ class TerminalView @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (event.action == MotionEvent.ACTION_UP || event.action == MotionEvent.ACTION_CANCEL) {
-            cursorRepeatHandler.removeCallbacks(cursorRepeatRunnable)
-            lastCursorDirection = null
-            swiping = false
-            swipeHorizontal = false
+        val pointerCount = event.pointerCount
+
+        when (event.actionMasked) {
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                if (pointerCount == 2) {
+                    // Start two-finger scroll mode
+                    twoFingerScrolling = true
+                    twoFingerLastY = (event.getY(0) + event.getY(1)) / 2f
+                    twoFingerAccumY = 0f
+                    // Cancel any ongoing cursor swipe
+                    cursorRepeatHandler.removeCallbacks(cursorRepeatRunnable)
+                    lastCursorDirection = null
+                    swiping = false
+                    return true
+                }
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (twoFingerScrolling && pointerCount >= 2) {
+                    val midY = (event.getY(0) + event.getY(1)) / 2f
+                    val dy = twoFingerLastY - midY
+                    twoFingerLastY = midY
+                    twoFingerAccumY += dy
+                    val rows = (twoFingerAccumY / charHeight).toInt()
+                    if (rows != 0) {
+                        adjustScroll(rows)
+                        twoFingerAccumY -= rows * charHeight
+                    }
+                    return true
+                }
+                if (selecting) {
+                    selEndCol = (event.x / charWidth).toInt()
+                    selEndRow = (event.y / charHeight).toInt() - scrollOffset
+                    invalidate()
+                    return true
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                cursorRepeatHandler.removeCallbacks(cursorRepeatRunnable)
+                lastCursorDirection = null
+                swiping = false
+                swipeHorizontal = false
+                twoFingerScrolling = false
+            }
+            MotionEvent.ACTION_POINTER_UP -> {
+                // One finger lifted — keep two-finger mode until all up
+                if (twoFingerScrolling) return true
+            }
         }
 
-        if (selecting && event.action == MotionEvent.ACTION_MOVE) {
-            selEndCol = (event.x / charWidth).toInt()
-            selEndRow = (event.y / charHeight).toInt() - scrollOffset
-            invalidate()
-            return true
-        }
+        if (twoFingerScrolling) return true
         return gestureDetector.onTouchEvent(event) || super.onTouchEvent(event)
     }
 

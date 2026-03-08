@@ -126,6 +126,9 @@ fun AppNavigation() {
                             popUpTo("sessions") { inclusive = true }
                         }
                     }
+                },
+                onDeleteSession = { sessionName ->
+                    connectViewModel.deleteTmuxSession(sessionName)
                 }
             )
         }

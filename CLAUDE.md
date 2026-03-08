@@ -7,7 +7,7 @@ Android SSH client with tmux session support. Kotlin + Jetpack Compose.
 - Current version: `0.1.0` (app/build.gradle.kts の versionCode / versionName)
 - **修正依頼のたびにパッチバージョンを上げる** (0.1.0 → 0.1.1 → 0.1.2 ...)
 - versionCode もインクリメントする (1 → 2 → 3 ...)
-- ビルド成功後にリリースする: `gh release upload dev app/build/outputs/apk/debug/app-debug.apk --clobber`
+- ビルド成功後に `/release` スキルでリリースする
 
 ## Build
 ```bash
@@ -40,6 +40,4 @@ Android SSH client with tmux session support. Kotlin + Jetpack Compose.
 - TmuxControlModeParserTest: unit tests for tmux protocol parsing
 
 ## Release
-```bash
-./gradlew assembleDebug && gh release upload dev app/build/outputs/apk/debug/app-debug.apk --clobber
-```
+`/release` スキルを使用する。

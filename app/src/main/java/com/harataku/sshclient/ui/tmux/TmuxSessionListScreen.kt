@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,8 +21,32 @@ fun TmuxSessionListScreen(
     isLoading: Boolean,
     onSessionSelected: (String) -> Unit,
     onNewSession: () -> Unit,
+    onDeleteSession: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var sessionToDelete by remember { mutableStateOf<String?>(null) }
+
+    if (sessionToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { sessionToDelete = null },
+            title = { Text("Delete Session") },
+            text = { Text("Delete tmux session \"${sessionToDelete}\"?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteSession(sessionToDelete!!)
+                    sessionToDelete = null
+                }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { sessionToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(title = { Text("tmux Sessions") })
@@ -61,7 +86,8 @@ fun TmuxSessionListScreen(
                     items(sessions) { session ->
                         TmuxSessionCard(
                             session = session,
-                            onClick = { onSessionSelected(session.name) }
+                            onClick = { onSessionSelected(session.name) },
+                            onDelete = { sessionToDelete = session.name }
                         )
                     }
                 }
@@ -73,7 +99,8 @@ fun TmuxSessionListScreen(
 @Composable
 private fun TmuxSessionCard(
     session: TmuxSessionInfo,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDelete: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -82,12 +109,12 @@ private fun TmuxSessionCard(
     ) {
         Row(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 8.dp)
                 .fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = session.name,
                     style = MaterialTheme.typography.titleMedium
@@ -102,6 +129,13 @@ private fun TmuxSessionCard(
                 AssistChip(
                     onClick = {},
                     label = { Text("attached") }
+                )
+            }
+            IconButton(onClick = onDelete) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "Delete session",
+                    tint = MaterialTheme.colorScheme.error
                 )
             }
         }

@@ -214,6 +214,17 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun deleteTmuxSession(sessionName: String) {
+        viewModelScope.launch {
+            try {
+                sshSessionManager.killTmuxSession(sessionName)
+                _tmuxSessions.value = sshSessionManager.listTmuxSessions()
+            } catch (e: Exception) {
+                Log.e("SSH", "Failed to delete tmux session", e)
+            }
+        }
+    }
+
     fun updateHost(host: String) {
         _config.value = _config.value.copy(host = host)
     }
