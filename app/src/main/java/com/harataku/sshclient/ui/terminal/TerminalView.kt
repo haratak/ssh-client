@@ -205,31 +205,14 @@ class TerminalView @JvmOverloads constructor(
         outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN or EditorInfo.IME_FLAG_NO_EXTRACT_UI
         // true = maintain internal Editable so IME (especially voice input) stays connected
         return object : BaseInputConnection(this, true) {
-            // Track what we've sent to the terminal during composing
-            private var sentComposing = ""
-            // Track if composing had an incompatible change (e.g. conversion)
-            private var composingDirty = false
 
             override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
-                val t = text?.toString() ?: ""
-                if (!composingDirty && t.startsWith(sentComposing)) {
-                    // Text is growing (voice input) — send delta only
-                    val delta = t.substring(sentComposing.length)
-                    if (delta.isNotEmpty()) {
-                        terminalSession?.writeInput(delta)
-                    }
-                    sentComposing = t
-                } else {
-                    // Incompatible change (Japanese conversion etc.)
-                    // Don't send anything — wait for commitText
-                    composingDirty = true
-                }
+                // Don't send composing text — let IME handle display
+                // Text is sent only on commitText
                 return super.setComposingText(text, newCursorPosition)
             }
 
             override fun finishComposingText(): Boolean {
-                sentComposing = ""
-                composingDirty = false
                 val result = super.finishComposingText()
                 editable?.clear()
                 return result
@@ -237,26 +220,9 @@ class TerminalView @JvmOverloads constructor(
 
             override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
                 val t = text?.toString() ?: ""
-                if (composingDirty) {
-                    // Composing had conversion — delete what we sent, send final text
-                    terminalSession?.writeReplace(sentComposing.length, t)
-                } else if (sentComposing.isNotEmpty() && t.startsWith(sentComposing)) {
-                    // Voice input path — send remainder
-                    val remaining = t.substring(sentComposing.length)
-                    if (remaining.isNotEmpty()) {
-                        terminalSession?.writeInput(remaining)
-                    }
-                } else if (sentComposing.isEmpty()) {
-                    // No prior composing — send full text
-                    if (t.isNotEmpty()) {
-                        terminalSession?.writeInput(t)
-                    }
-                } else {
-                    // Fallback: delete old, send new
-                    terminalSession?.writeReplace(sentComposing.length, t)
+                if (t.isNotEmpty()) {
+                    terminalSession?.writeInput(t)
                 }
-                sentComposing = ""
-                composingDirty = false
                 val result = super.commitText(text, newCursorPosition)
                 editable?.clear()
                 return result
@@ -266,7 +232,6 @@ class TerminalView @JvmOverloads constructor(
                 if (beforeLength > 0) {
                     repeat(beforeLength) { terminalSession?.writeByte(0x7F) }
                 }
-                sentComposing = ""
                 val result = super.deleteSurroundingText(beforeLength, afterLength)
                 editable?.clear()
                 return result
