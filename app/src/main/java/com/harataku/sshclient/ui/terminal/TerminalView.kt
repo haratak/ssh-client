@@ -8,6 +8,9 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import android.os.Handler
 import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.text.InputType
 import android.util.AttributeSet
 import android.view.ActionMode
@@ -103,6 +106,7 @@ class TerminalView @JvmOverloads constructor(
                     val dir = if (steps > 0) "\u001b[C" else "\u001b[D"
                     repeat(abs(steps)) { terminalSession?.writeInput(dir) }
                     swipeAccumX -= steps * charWidth
+                    hapticTick()
                     // Start repeat if holding
                     lastCursorDirection = dir
                     cursorRepeatHandler.removeCallbacks(cursorRepeatRunnable)
@@ -116,6 +120,7 @@ class TerminalView @JvmOverloads constructor(
                     val dir = if (steps > 0) "\u001b[B" else "\u001b[A"
                     repeat(abs(steps)) { terminalSession?.writeInput(dir) }
                     swipeAccumY -= steps * charHeight
+                    hapticTick()
                     lastCursorDirection = dir
                     cursorRepeatHandler.removeCallbacks(cursorRepeatRunnable)
                     cursorRepeatHandler.postDelayed(cursorRepeatRunnable, 400)
@@ -142,6 +147,7 @@ class TerminalView @JvmOverloads constructor(
             val release = "\u001b[<0;${col};${row}m"
             terminalSession?.writeInput(press)
             terminalSession?.writeInput(release)
+            hapticTick()
 
             requestFocus()
             val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
@@ -151,11 +157,13 @@ class TerminalView @JvmOverloads constructor(
 
         override fun onDoubleTap(e: MotionEvent): Boolean {
             terminalSession?.writeByte(0x0D) // Enter
+            hapticClick()
             return true
         }
 
         override fun onLongPress(e: MotionEvent) {
             if (swiping || twoFingerScrolling) return
+            hapticClick()
             val col = (e.x / charWidth).toInt()
             val row = (e.y / charHeight).toInt() - scrollOffset
             selStartCol = col
@@ -169,6 +177,21 @@ class TerminalView @JvmOverloads constructor(
 
         override fun onDown(e: MotionEvent): Boolean = true
     })
+
+    private val vibrator: Vibrator = if (android.os.Build.VERSION.SDK_INT >= 31) {
+        (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+    } else {
+        @Suppress("DEPRECATION")
+        context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+    }
+
+    private fun hapticTick() {
+        vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK))
+    }
+
+    private fun hapticClick() {
+        vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
+    }
 
     init {
         isFocusable = true
