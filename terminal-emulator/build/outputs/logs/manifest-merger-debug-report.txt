@@ -1,0 +1,16 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /home/harataku/Dev/repos/work/ssh-client/terminal-emulator/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest11532277177898200170.xml:2:13-83
+INJECTED from /home/harataku/Dev/repos/work/ssh-client/terminal-emulator/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest11532277177898200170.xml:2:13-83
+	package
+		INJECTED from /home/harataku/Dev/repos/work/ssh-client/terminal-emulator/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest11532277177898200170.xml
+	xmlns:android
+		ADDED from /home/harataku/Dev/repos/work/ssh-client/terminal-emulator/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest11532277177898200170.xml:2:23-81
+uses-sdk
+INJECTED from /home/harataku/Dev/repos/work/ssh-client/terminal-emulator/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest11532277177898200170.xml reason: use-sdk injection requested
+INJECTED from /home/harataku/Dev/repos/work/ssh-client/terminal-emulator/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest11532277177898200170.xml
+INJECTED from /home/harataku/Dev/repos/work/ssh-client/terminal-emulator/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest11532277177898200170.xml
+	android:targetSdkVersion
+		INJECTED from /home/harataku/Dev/repos/work/ssh-client/terminal-emulator/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest11532277177898200170.xml
+	android:minSdkVersion
+		INJECTED from /home/harataku/Dev/repos/work/ssh-client/terminal-emulator/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest11532277177898200170.xml
