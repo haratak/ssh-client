@@ -189,36 +189,39 @@ class TerminalView @JvmOverloads constructor(
     override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection {
         outAttrs.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
         outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN or EditorInfo.IME_FLAG_NO_EXTRACT_UI
-        // false = no internal Editable, prevents IME state mismatch that kills voice input
-        return object : BaseInputConnection(this, false) {
-            private var composingText = ""
+        // true = maintain internal Editable so IME (especially voice input) stays connected
+        return object : BaseInputConnection(this, true) {
 
             override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
-                composingText = text?.toString() ?: ""
-                return true
+                // Let base class track composing state for IME
+                return super.setComposingText(text, newCursorPosition)
             }
 
             override fun finishComposingText(): Boolean {
-                if (composingText.isNotEmpty()) {
-                    terminalSession?.writeInput(composingText)
-                    composingText = ""
+                // Send any remaining composing text to terminal
+                val editable = editable
+                if (editable != null && editable.isNotEmpty()) {
+                    terminalSession?.writeInput(editable.toString())
+                    editable.clear()
                 }
-                return true
+                return super.finishComposingText()
             }
 
             override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
-                composingText = ""
                 text?.toString()?.let { t ->
                     terminalSession?.writeInput(t)
                 }
-                return true
+                // Let base class update internal state, then clear to prevent accumulation
+                val result = super.commitText(text, newCursorPosition)
+                editable?.clear()
+                return result
             }
 
             override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
                 if (beforeLength > 0) {
                     repeat(beforeLength) { terminalSession?.writeByte(0x7F) }
                 }
-                return true
+                return super.deleteSurroundingText(beforeLength, afterLength)
             }
 
             override fun sendKeyEvent(event: KeyEvent): Boolean {
