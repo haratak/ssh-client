@@ -24,6 +24,7 @@ class TerminalSession(
     private var started = false
 
     var onRedraw: (() -> Unit)? = null
+    var onDisconnected: (() -> Unit)? = null
 
     val lock = Object()
 
@@ -116,6 +117,8 @@ class TerminalSession(
             } catch (e: Exception) {
                 Log.e("TerminalSession", "Read failed", e)
             }
+            Log.w("TerminalSession", "Read loop ended, connection lost")
+            onDisconnected?.invoke()
         }
     }
 
@@ -158,6 +161,11 @@ class TerminalSession(
             kotlinx.coroutines.delay(1000)
             controller.listSessions()
         }
+    }
+
+    fun reconnect() {
+        outputStream = sshSessionManager.getOutputStream()
+        startRawReading()
     }
 
     fun writeInput(text: String) {

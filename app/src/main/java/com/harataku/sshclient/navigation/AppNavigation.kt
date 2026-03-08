@@ -94,11 +94,23 @@ fun AppNavigation() {
             val sshSessionManager = remember { connectViewModel.sshSessionManager }
             terminalViewModel.init(sshSessionManager, useTmux = false)
 
+            val connectionState by connectViewModel.connectionState.collectAsState()
+
             terminalViewModel.terminalSession?.let { session ->
+                // Wire up auto-reconnect on disconnection
+                LaunchedEffect(session) {
+                    session.onDisconnected = {
+                        connectViewModel.reconnect {
+                            session.reconnect()
+                        }
+                    }
+                }
+
                 TerminalScreen(
                     terminalSession = session,
                     sessions = sessions,
                     currentSessionName = currentSessionName,
+                    connectionState = connectionState,
                     onSessionTab = { sessionName ->
                         if (sessionName != currentSessionName) {
                             connectViewModel.switchTmuxSession(sessionName) {

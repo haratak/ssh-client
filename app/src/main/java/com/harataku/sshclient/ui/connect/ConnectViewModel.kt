@@ -1,13 +1,16 @@
 package com.harataku.sshclient.ui.connect
 
 import android.app.Application
+import android.content.Intent
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.harataku.sshclient.ssh.ConnectionStore
 import com.harataku.sshclient.ssh.SshConnectionConfig
+import com.harataku.sshclient.ssh.SshConnectionService
 import com.harataku.sshclient.ssh.SshSessionManager
 import com.harataku.sshclient.tmux.TmuxSessionInfo
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -33,6 +36,8 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
 
     val sshSessionManager = SshSessionManager()
 
+    private var _reconnecting = false
+
     init {
         val saved = connectionStore.load()
         if (saved != null) {
@@ -47,11 +52,74 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
             try {
                 sshSessionManager.connect(config)
                 _connectionState.value = ConnectionState.Connected
+                startForegroundService()
                 loadTmuxSessions()
             } catch (e: Exception) {
                 Log.e("SSH", "Auto-connect failed", e)
                 _connectionState.value = ConnectionState.Error(e.message ?: "Auto-connect failed")
             }
+        }
+    }
+
+    private fun startForegroundService() {
+        val app = getApplication<Application>()
+        val intent = Intent(app, SshConnectionService::class.java)
+        app.startForegroundService(intent)
+    }
+
+    private fun stopForegroundService() {
+        val app = getApplication<Application>()
+        val intent = Intent(app, SshConnectionService::class.java)
+        app.stopService(intent)
+    }
+
+    /**
+     * Attempt to reconnect SSH and re-attach to the current tmux session.
+     * Called when TerminalSession detects a disconnection.
+     */
+    fun reconnect(onReconnected: (() -> Unit)? = null) {
+        if (_reconnecting) return
+        _reconnecting = true
+        val config = sshSessionManager.connectionConfig ?: _config.value
+        val sessionName = _currentSessionName.value
+
+        _connectionState.value = ConnectionState.Reconnecting
+
+        viewModelScope.launch {
+            var retries = 0
+            val maxRetries = 10
+            var connected = false
+
+            while (retries < maxRetries && !connected) {
+                retries++
+                Log.d("SSH", "Reconnect attempt $retries/$maxRetries")
+                try {
+                    sshSessionManager.disconnect()
+                    sshSessionManager.connect(config)
+                    // Re-attach to tmux session if we had one
+                    if (sessionName != null) {
+                        sshSessionManager.startTmuxShell(sessionName)
+                    } else {
+                        sshSessionManager.startShell()
+                    }
+                    connected = true
+                    _connectionState.value = ConnectionState.Connected
+                    Log.d("SSH", "Reconnected successfully")
+                    onReconnected?.invoke()
+                } catch (e: Exception) {
+                    Log.e("SSH", "Reconnect attempt $retries failed: ${e.message}")
+                    if (retries < maxRetries) {
+                        // Exponential backoff: 1s, 2s, 4s, 8s... capped at 30s
+                        delay(minOf(1000L * (1L shl (retries - 1)), 30000L))
+                    }
+                }
+            }
+
+            if (!connected) {
+                _connectionState.value = ConnectionState.Error("Reconnection failed after $maxRetries attempts")
+                stopForegroundService()
+            }
+            _reconnecting = false
         }
     }
 
@@ -163,6 +231,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 sshSessionManager.connect(c)
                 connectionStore.save(c)
                 _connectionState.value = ConnectionState.Connected
+                startForegroundService()
                 loadTmuxSessions()
             } catch (e: Exception) {
                 Log.e("SSH", "Connection failed", e)
@@ -173,6 +242,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
 
     override fun onCleared() {
         super.onCleared()
+        stopForegroundService()
         sshSessionManager.disconnect()
     }
 }
@@ -181,5 +251,6 @@ sealed class ConnectionState {
     data object Idle : ConnectionState()
     data object Connecting : ConnectionState()
     data object Connected : ConnectionState()
+    data object Reconnecting : ConnectionState()
     data class Error(val message: String) : ConnectionState()
 }

@@ -18,12 +18,18 @@ class SshSessionManager {
     private var _inputStream: InputStream? = null
     private var _outputStream: OutputStream? = null
 
+    var connectionConfig: SshConnectionConfig? = null
+        private set
+
     suspend fun connect(config: SshConnectionConfig) = withContext(Dispatchers.IO) {
         val client = SSHClient()
         client.addHostKeyVerifier(PromiscuousVerifier())
         client.connect(config.host, config.port)
         client.authPassword(config.username, config.password)
+        // Send keepalive every 15 seconds to detect dead connections
+        client.connection.keepAlive.keepAliveInterval = 15
         sshClient = client
+        connectionConfig = config
         Log.d("SSH", "Connected to ${config.host}:${config.port}")
     }
 

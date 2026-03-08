@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -16,12 +17,14 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.harataku.sshclient.terminal.TerminalSession
 import com.harataku.sshclient.tmux.TmuxSessionInfo
+import com.harataku.sshclient.ui.connect.ConnectionState
 
 @Composable
 fun TerminalScreen(
     terminalSession: TerminalSession,
     sessions: List<TmuxSessionInfo> = emptyList(),
     currentSessionName: String? = null,
+    connectionState: ConnectionState = ConnectionState.Connected,
     onSessionTab: (String) -> Unit = {},
     onNewSession: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -56,6 +59,25 @@ fun TerminalScreen(
                 onNewSession = onNewSession,
                 modifier = Modifier.align(Alignment.TopCenter)
             )
+        }
+
+        // Reconnecting indicator
+        if (connectionState is ConnectionState.Reconnecting) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .background(Color(0xCC000000))
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+                Text("Reconnecting...", color = Color.White, fontSize = 14.sp)
+            }
         }
 
         ModifierKeyBar(
