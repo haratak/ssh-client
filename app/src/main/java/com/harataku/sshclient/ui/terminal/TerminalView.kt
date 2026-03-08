@@ -231,6 +231,10 @@ class TerminalView @JvmOverloads constructor(
                     // First composing text is already multi-char = voice input
                     terminalSession?.writeInput(t)
                     sentComposing = t
+                } else if (!isGrowing && sentComposing.isNotEmpty()) {
+                    // Incompatible change (voice paused & restarted, or conversion)
+                    // Keep what we already sent, start fresh
+                    sentComposing = ""
                 }
 
                 prevComposing = t
