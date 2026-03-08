@@ -189,12 +189,11 @@ class TerminalView @JvmOverloads constructor(
     override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection {
         outAttrs.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
         outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN or EditorInfo.IME_FLAG_NO_EXTRACT_UI
-        return object : BaseInputConnection(this, true) {
+        // false = no internal Editable, prevents IME state mismatch that kills voice input
+        return object : BaseInputConnection(this, false) {
             private var composingText = ""
 
             override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
-                // Japanese IME sends composing text during henkan (conversion)
-                // We don't display it inline but track it for proper deletion
                 composingText = text?.toString() ?: ""
                 return true
             }
@@ -356,18 +355,7 @@ class TerminalView @JvmOverloads constructor(
                             textPaint.color = foreColor
                             textPaint.isFakeBoldText = (effect and TextStyle.CHARACTER_ATTRIBUTE_BOLD) != 0
                             val charCount = endIdx - startIdx
-                            if (cellCols > 1) {
-                                // Wide character (CJK etc): use textScaleX to fit cell width
-                                val actualWidth = textPaint.measureText(line.mText, startIdx, charCount)
-                                val savedScaleX = textPaint.textScaleX
-                                if (actualWidth > 0f) {
-                                    textPaint.textScaleX = cellPixelWidth / actualWidth
-                                }
-                                canvas.drawText(line.mText, startIdx, charCount, x, y + baselineOffset, textPaint)
-                                textPaint.textScaleX = savedScaleX
-                            } else {
-                                canvas.drawText(line.mText, startIdx, charCount, x, y + baselineOffset, textPaint)
-                            }
+                            canvas.drawText(line.mText, startIdx, charCount, x, y + baselineOffset, textPaint)
                         }
                     }
 
