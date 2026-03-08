@@ -6,6 +6,8 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.os.Handler
+import android.os.Looper
 import android.text.InputType
 import android.util.AttributeSet
 import android.view.ActionMode
@@ -23,6 +25,7 @@ import android.widget.OverScroller
 import com.harataku.sshclient.terminal.TerminalSession
 import com.termux.terminal.TextStyle
 import com.termux.terminal.WcWidth
+import kotlin.math.abs
 
 class TerminalView @JvmOverloads constructor(
     context: Context,
@@ -58,18 +61,62 @@ class TerminalView @JvmOverloads constructor(
 
     private val scroller = OverScroller(context)
 
+    // Cursor swipe state
+    private var swiping = false
+    private var swipeHorizontal = false
+    private var swipeAccumX = 0f
+    private var swipeAccumY = 0f
+    private var lastCursorDirection: String? = null
+    private val cursorRepeatHandler = Handler(Looper.getMainLooper())
+    private val cursorRepeatDelay = 80L // ms between repeats
+    private val cursorRepeatRunnable = object : Runnable {
+        override fun run() {
+            lastCursorDirection?.let { dir ->
+                terminalSession?.writeInput(dir)
+            }
+            cursorRepeatHandler.postDelayed(this, cursorRepeatDelay)
+        }
+    }
+
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
-            if (selecting) return true // Don't scroll while selecting
-            val rowDelta = (-distanceY / charHeight).toInt()
-            if (rowDelta != 0) {
-                adjustScroll(rowDelta)
+            if (selecting) return true
+
+            // Determine direction on first scroll event
+            if (!swiping) {
+                swiping = true
+                swipeHorizontal = abs(distanceX) > abs(distanceY)
+                swipeAccumX = 0f
+                swipeAccumY = 0f
+            }
+
+            if (swipeHorizontal) {
+                // Horizontal swipe → cursor left/right
+                swipeAccumX += -distanceX
+                val steps = (swipeAccumX / charWidth).toInt()
+                if (steps != 0) {
+                    val dir = if (steps > 0) "\u001b[C" else "\u001b[D"
+                    repeat(abs(steps)) { terminalSession?.writeInput(dir) }
+                    swipeAccumX -= steps * charWidth
+                    // Start repeat if holding
+                    lastCursorDirection = dir
+                    cursorRepeatHandler.removeCallbacks(cursorRepeatRunnable)
+                    cursorRepeatHandler.postDelayed(cursorRepeatRunnable, 400)
+                }
+            } else {
+                // Vertical swipe → scroll
+                swipeAccumY += -distanceY
+                val rowDelta = (swipeAccumY / charHeight).toInt()
+                if (rowDelta != 0) {
+                    adjustScroll(rowDelta)
+                    swipeAccumY -= rowDelta * charHeight
+                }
             }
             return true
         }
 
         override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
-            if (selecting) return true
+            if (selecting || swipeHorizontal) return true
             val maxScroll = terminalSession?.let {
                 synchronized(it.lock) { it.emulator.screen.activeTranscriptRows }
             } ?: 0
@@ -90,6 +137,7 @@ class TerminalView @JvmOverloads constructor(
         }
 
         override fun onLongPress(e: MotionEvent) {
+            if (swiping) return // Don't select while swiping
             val col = (e.x / charWidth).toInt()
             val row = (e.y / charHeight).toInt() - scrollOffset
             selStartCol = col
@@ -193,6 +241,13 @@ class TerminalView @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (event.action == MotionEvent.ACTION_UP || event.action == MotionEvent.ACTION_CANCEL) {
+            cursorRepeatHandler.removeCallbacks(cursorRepeatRunnable)
+            lastCursorDirection = null
+            swiping = false
+            swipeHorizontal = false
+        }
+
         if (selecting && event.action == MotionEvent.ACTION_MOVE) {
             selEndCol = (event.x / charWidth).toInt()
             selEndRow = (event.y / charHeight).toInt() - scrollOffset
@@ -409,6 +464,11 @@ class TerminalView @JvmOverloads constructor(
                 invalidate()
             }
         }, ActionMode.TYPE_FLOATING)
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        cursorRepeatHandler.removeCallbacks(cursorRepeatRunnable)
     }
 
     private fun resolveColor(colorIdx: Int, colors: IntArray, default: Int): Int {
