@@ -128,7 +128,7 @@ class TerminalView @JvmOverloads constructor(
             return true
         }
 
-        override fun onSingleTapUp(e: MotionEvent): Boolean {
+        override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
             if (selecting) {
                 clearSelection()
                 return true
@@ -146,6 +146,11 @@ class TerminalView @JvmOverloads constructor(
             requestFocus()
             val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.showSoftInput(this@TerminalView, InputMethodManager.SHOW_IMPLICIT)
+            return true
+        }
+
+        override fun onDoubleTap(e: MotionEvent): Boolean {
+            terminalSession?.writeByte(0x0D) // Enter
             return true
         }
 
