@@ -24,6 +24,7 @@ import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
+import android.util.Log
 import android.widget.OverScroller
 import com.harataku.sshclient.terminal.TerminalSession
 import com.termux.terminal.TextStyle
@@ -347,6 +348,7 @@ class TerminalView @JvmOverloads constructor(
     }
 
     private fun enterTwoFingerScroll(event: MotionEvent) {
+        Log.d("TerminalView", "enterTwoFingerScroll pointers=${event.pointerCount}")
         twoFingerScrolling = true
         twoFingerLastY = (event.getY(0) + event.getY(1)) / 2f
         twoFingerAccumY = 0f
@@ -362,6 +364,9 @@ class TerminalView @JvmOverloads constructor(
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val pointerCount = event.pointerCount
+
+        // Prevent parent from intercepting our touch events
+        parent?.requestDisallowInterceptTouchEvent(true)
 
         // Detect two-finger gesture on any event with 2+ pointers
         if (pointerCount >= 2 && !twoFingerScrolling) {
