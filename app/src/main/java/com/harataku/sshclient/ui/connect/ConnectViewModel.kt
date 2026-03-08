@@ -56,8 +56,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
             try {
                 sshSessionManager.connect(config)
                 _connectionState.value = ConnectionState.Connected
-                // TODO: re-enable after fixing crash
-                // startForegroundService()
+                startForegroundService()
                 loadTmuxSessions()
             } catch (e: Exception) {
                 Log.e("SSH", "Auto-connect failed", e)
@@ -254,8 +253,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 sshSessionManager.connect(c)
                 connectionStore.save(c)
                 _connectionState.value = ConnectionState.Connected
-                // TODO: re-enable after fixing crash
-                // startForegroundService()
+                startForegroundService()
                 loadTmuxSessions()
             } catch (e: Exception) {
                 Log.e("SSH", "Connection failed", e)
