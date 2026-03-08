@@ -54,7 +54,7 @@ class TerminalView @JvmOverloads constructor(
     private var selEndCol = 0
     private var selEndRow = 0
     private var actionMode: ActionMode? = null
-    private val selectionPaint = Paint().apply { color = 0x6033B5E5.toInt() }
+    private val selectionPaint = Paint().apply { color = 0xAA336699.toInt() }
 
     private val scroller = OverScroller(context)
 
