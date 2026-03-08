@@ -191,34 +191,60 @@ class TerminalView @JvmOverloads constructor(
         outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN or EditorInfo.IME_FLAG_NO_EXTRACT_UI
         // true = maintain internal Editable so IME (especially voice input) stays connected
         return object : BaseInputConnection(this, true) {
-            // Track what we've already sent to avoid double-sending
-            private var lastSentLength = 0
+            // Track composing text we've already sent for incremental updates
+            private var sentComposing = ""
 
             override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
+                val t = text?.toString() ?: ""
+                if (t.startsWith(sentComposing)) {
+                    // Text grew — send only the new part
+                    val delta = t.substring(sentComposing.length)
+                    if (delta.isNotEmpty()) {
+                        terminalSession?.writeInput(delta)
+                    }
+                } else {
+                    // Text changed — backspace old composing, send new
+                    repeat(sentComposing.length) { terminalSession?.writeByte(0x7F) }
+                    if (t.isNotEmpty()) {
+                        terminalSession?.writeInput(t)
+                    }
+                }
+                sentComposing = t
                 return super.setComposingText(text, newCursorPosition)
             }
 
             override fun finishComposingText(): Boolean {
-                // Send any unsent text from editable before finishing
-                val editable = editable
-                if (editable != null && editable.length > lastSentLength) {
-                    val unsent = editable.substring(lastSentLength)
-                    terminalSession?.writeInput(unsent)
-                }
-                lastSentLength = 0
+                sentComposing = ""
                 val result = super.finishComposingText()
                 editable?.clear()
                 return result
             }
 
             override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
-                // Send the committed text to terminal
-                text?.toString()?.let { t ->
-                    terminalSession?.writeInput(t)
+                val t = text?.toString() ?: ""
+                if (sentComposing.isNotEmpty()) {
+                    // We already sent composing text incrementally
+                    if (t.startsWith(sentComposing)) {
+                        // Commit has extra beyond what we sent
+                        val remaining = t.substring(sentComposing.length)
+                        if (remaining.isNotEmpty()) {
+                            terminalSession?.writeInput(remaining)
+                        }
+                    } else {
+                        // Commit differs from composing — backspace and resend
+                        repeat(sentComposing.length) { terminalSession?.writeByte(0x7F) }
+                        if (t.isNotEmpty()) {
+                            terminalSession?.writeInput(t)
+                        }
+                    }
+                } else {
+                    // No prior composing — send full text
+                    if (t.isNotEmpty()) {
+                        terminalSession?.writeInput(t)
+                    }
                 }
-                // Let base class update internal state, then clear
+                sentComposing = ""
                 val result = super.commitText(text, newCursorPosition)
-                lastSentLength = 0
                 editable?.clear()
                 return result
             }
@@ -227,7 +253,7 @@ class TerminalView @JvmOverloads constructor(
                 if (beforeLength > 0) {
                     repeat(beforeLength) { terminalSession?.writeByte(0x7F) }
                 }
-                lastSentLength = 0
+                sentComposing = ""
                 val result = super.deleteSurroundingText(beforeLength, afterLength)
                 editable?.clear()
                 return result
