@@ -357,16 +357,14 @@ class TerminalView @JvmOverloads constructor(
                             textPaint.isFakeBoldText = (effect and TextStyle.CHARACTER_ATTRIBUTE_BOLD) != 0
                             val charCount = endIdx - startIdx
                             if (cellCols > 1) {
-                                // Wide character (CJK etc): scale to fit cell exactly
+                                // Wide character (CJK etc): use textScaleX to fit cell width
                                 val actualWidth = textPaint.measureText(line.mText, startIdx, charCount)
+                                val savedScaleX = textPaint.textScaleX
                                 if (actualWidth > 0f) {
-                                    canvas.save()
-                                    canvas.clipRect(x, y, x + cellPixelWidth, y + charHeight)
-                                    val scale = cellPixelWidth / actualWidth
-                                    canvas.scale(scale, 1f, x, y)
-                                    canvas.drawText(line.mText, startIdx, charCount, x, y + baselineOffset, textPaint)
-                                    canvas.restore()
+                                    textPaint.textScaleX = cellPixelWidth / actualWidth
                                 }
+                                canvas.drawText(line.mText, startIdx, charCount, x, y + baselineOffset, textPaint)
+                                textPaint.textScaleX = savedScaleX
                             } else {
                                 canvas.drawText(line.mText, startIdx, charCount, x, y + baselineOffset, textPaint)
                             }
