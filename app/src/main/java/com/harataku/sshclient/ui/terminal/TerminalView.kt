@@ -355,17 +355,20 @@ class TerminalView @JvmOverloads constructor(
                         if (c != ' ') {
                             textPaint.color = foreColor
                             textPaint.isFakeBoldText = (effect and TextStyle.CHARACTER_ATTRIBUTE_BOLD) != 0
+                            val charCount = endIdx - startIdx
                             if (cellCols > 1) {
                                 // Wide character (CJK etc): scale to fit cell exactly
-                                val actualWidth = textPaint.measureText(line.mText, startIdx, endIdx)
-                                canvas.save()
-                                canvas.clipRect(x, y, x + cellPixelWidth, y + charHeight)
-                                val scale = cellPixelWidth / actualWidth
-                                canvas.scale(scale, 1f, x, y)
-                                canvas.drawText(line.mText, startIdx, endIdx - startIdx, x, y + baselineOffset, textPaint)
-                                canvas.restore()
+                                val actualWidth = textPaint.measureText(line.mText, startIdx, charCount)
+                                if (actualWidth > 0f) {
+                                    canvas.save()
+                                    canvas.clipRect(x, y, x + cellPixelWidth, y + charHeight)
+                                    val scale = cellPixelWidth / actualWidth
+                                    canvas.scale(scale, 1f, x, y)
+                                    canvas.drawText(line.mText, startIdx, charCount, x, y + baselineOffset, textPaint)
+                                    canvas.restore()
+                                }
                             } else {
-                                canvas.drawText(line.mText, startIdx, endIdx - startIdx, x, y + baselineOffset, textPaint)
+                                canvas.drawText(line.mText, startIdx, charCount, x, y + baselineOffset, textPaint)
                             }
                         }
                     }
