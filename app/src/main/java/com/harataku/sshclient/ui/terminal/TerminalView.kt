@@ -187,10 +187,28 @@ class TerminalView @JvmOverloads constructor(
     override fun onCheckIsTextEditor(): Boolean = true
 
     override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection {
-        outAttrs.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-        outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN
-        return object : BaseInputConnection(this, false) {
+        outAttrs.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN or EditorInfo.IME_FLAG_NO_EXTRACT_UI
+        return object : BaseInputConnection(this, true) {
+            private var composingText = ""
+
+            override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
+                // Japanese IME sends composing text during henkan (conversion)
+                // We don't display it inline but track it for proper deletion
+                composingText = text?.toString() ?: ""
+                return true
+            }
+
+            override fun finishComposingText(): Boolean {
+                if (composingText.isNotEmpty()) {
+                    terminalSession?.writeInput(composingText)
+                    composingText = ""
+                }
+                return true
+            }
+
             override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
+                composingText = ""
                 text?.toString()?.let { t ->
                     terminalSession?.writeInput(t)
                 }
@@ -337,7 +355,18 @@ class TerminalView @JvmOverloads constructor(
                         if (c != ' ') {
                             textPaint.color = foreColor
                             textPaint.isFakeBoldText = (effect and TextStyle.CHARACTER_ATTRIBUTE_BOLD) != 0
-                            canvas.drawText(line.mText, startIdx, endIdx - startIdx, x, y + baselineOffset, textPaint)
+                            if (cellCols > 1) {
+                                // Wide character (CJK etc): scale to fit cell exactly
+                                val actualWidth = textPaint.measureText(line.mText, startIdx, endIdx)
+                                canvas.save()
+                                canvas.clipRect(x, y, x + cellPixelWidth, y + charHeight)
+                                val scale = cellPixelWidth / actualWidth
+                                canvas.scale(scale, 1f, x, y)
+                                canvas.drawText(line.mText, startIdx, endIdx - startIdx, x, y + baselineOffset, textPaint)
+                                canvas.restore()
+                            } else {
+                                canvas.drawText(line.mText, startIdx, endIdx - startIdx, x, y + baselineOffset, textPaint)
+                            }
                         }
                     }
 
