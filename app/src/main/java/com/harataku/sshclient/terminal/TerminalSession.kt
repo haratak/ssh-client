@@ -164,8 +164,29 @@ class TerminalSession(
     }
 
     fun reconnect() {
-        outputStream = sshSessionManager.getOutputStream()
-        startRawReading()
+        try {
+            outputStream = sshSessionManager.getOutputStream()
+            startRawReading()
+        } catch (e: Exception) {
+            Log.e("TerminalSession", "Reconnect failed", e)
+        }
+    }
+
+    /**
+     * Switch to a different tmux session in-place (no navigation).
+     * Clears the screen and starts reading from the new shell.
+     */
+    fun switchSession() {
+        try {
+            outputStream = sshSessionManager.getOutputStream()
+            synchronized(lock) {
+                emulator.reset()
+            }
+            startRawReading()
+            onRedraw?.invoke()
+        } catch (e: Exception) {
+            Log.e("TerminalSession", "Switch session failed", e)
+        }
     }
 
     fun writeInput(text: String) {

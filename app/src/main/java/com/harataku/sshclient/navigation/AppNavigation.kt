@@ -157,17 +157,18 @@ fun AppNavigation() {
                     onSessionTab = { sessionName ->
                         if (sessionName != currentSessionName) {
                             connectViewModel.switchTmuxSession(sessionName) {
-                                navController.navigate("terminal") {
-                                    popUpTo("terminal") { inclusive = true }
-                                }
+                                session.switchSession()
                             }
                         }
                     },
                     onNewSession = {
                         connectViewModel.createAndSwitchTmuxSession {
-                            navController.navigate("terminal") {
-                                popUpTo("terminal") { inclusive = true }
-                            }
+                            session.switchSession()
+                        }
+                    },
+                    onReconnect = {
+                        connectViewModel.reconnect {
+                            session.reconnect()
                         }
                     }
                 )

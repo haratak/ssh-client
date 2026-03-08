@@ -110,7 +110,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
 
         viewModelScope.launch {
             var retries = 0
-            val maxRetries = 10
+            val maxRetries = 5
             var connected = false
 
             while (retries < maxRetries && !connected) {
@@ -132,14 +132,14 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 } catch (e: Exception) {
                     Log.e("SSH", "Reconnect attempt $retries failed: ${e.message}")
                     if (retries < maxRetries) {
-                        // Exponential backoff: 1s, 2s, 4s, 8s... capped at 30s
-                        delay(minOf(1000L * (1L shl (retries - 1)), 30000L))
+                        // Backoff: 2s, 4s, 8s, 16s
+                        delay(minOf(2000L * (1L shl (retries - 1)), 16000L))
                     }
                 }
             }
 
             if (!connected) {
-                _connectionState.value = ConnectionState.Error("Reconnection failed after $maxRetries attempts")
+                _connectionState.value = ConnectionState.Disconnected
                 stopForegroundService()
             }
             _reconnecting = false
@@ -276,5 +276,6 @@ sealed class ConnectionState {
     data object Connecting : ConnectionState()
     data object Connected : ConnectionState()
     data object Reconnecting : ConnectionState()
+    data object Disconnected : ConnectionState()
     data class Error(val message: String) : ConnectionState()
 }

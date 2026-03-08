@@ -8,6 +8,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +28,7 @@ fun TerminalScreen(
     connectionState: ConnectionState = ConnectionState.Connected,
     onSessionTab: (String) -> Unit = {},
     onNewSession: () -> Unit = {},
+    onReconnect: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var terminalView by remember { mutableStateOf<TerminalView?>(null) }
@@ -61,23 +63,41 @@ fun TerminalScreen(
             )
         }
 
-        // Reconnecting indicator
-        if (connectionState is ConnectionState.Reconnecting) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .background(Color(0xCC000000))
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = Color.White,
-                    strokeWidth = 2.dp
-                )
-                Text("Reconnecting...", color = Color.White, fontSize = 14.sp)
+        // Connection status overlay
+        when (connectionState) {
+            is ConnectionState.Reconnecting -> {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .background(Color(0xCC000000))
+                        .padding(horizontal = 24.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                    Text("Reconnecting...", color = Color.White, fontSize = 14.sp)
+                }
             }
+            is ConnectionState.Disconnected -> {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .background(Color(0xCC000000))
+                        .padding(horizontal = 24.dp, vertical = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Disconnected", color = Color.White, fontSize = 16.sp)
+                    TextButton(onClick = onReconnect) {
+                        Text("Retry", color = Color(0xFF64B5F6), fontSize = 14.sp)
+                    }
+                }
+            }
+            else -> {}
         }
 
         ModifierKeyBar(
