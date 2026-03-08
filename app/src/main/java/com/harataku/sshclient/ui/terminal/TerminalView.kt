@@ -191,28 +191,34 @@ class TerminalView @JvmOverloads constructor(
         outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN or EditorInfo.IME_FLAG_NO_EXTRACT_UI
         // true = maintain internal Editable so IME (especially voice input) stays connected
         return object : BaseInputConnection(this, true) {
+            // Track what we've already sent to avoid double-sending
+            private var lastSentLength = 0
 
             override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
-                // Let base class track composing state for IME
                 return super.setComposingText(text, newCursorPosition)
             }
 
             override fun finishComposingText(): Boolean {
-                // Send any remaining composing text to terminal
+                // Send any unsent text from editable before finishing
                 val editable = editable
-                if (editable != null && editable.isNotEmpty()) {
-                    terminalSession?.writeInput(editable.toString())
-                    editable.clear()
+                if (editable != null && editable.length > lastSentLength) {
+                    val unsent = editable.substring(lastSentLength)
+                    terminalSession?.writeInput(unsent)
                 }
-                return super.finishComposingText()
+                lastSentLength = 0
+                val result = super.finishComposingText()
+                editable?.clear()
+                return result
             }
 
             override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
+                // Send the committed text to terminal
                 text?.toString()?.let { t ->
                     terminalSession?.writeInput(t)
                 }
-                // Let base class update internal state, then clear to prevent accumulation
+                // Let base class update internal state, then clear
                 val result = super.commitText(text, newCursorPosition)
+                lastSentLength = 0
                 editable?.clear()
                 return result
             }
@@ -221,7 +227,10 @@ class TerminalView @JvmOverloads constructor(
                 if (beforeLength > 0) {
                     repeat(beforeLength) { terminalSession?.writeByte(0x7F) }
                 }
-                return super.deleteSurroundingText(beforeLength, afterLength)
+                lastSentLength = 0
+                val result = super.deleteSurroundingText(beforeLength, afterLength)
+                editable?.clear()
+                return result
             }
 
             override fun sendKeyEvent(event: KeyEvent): Boolean {

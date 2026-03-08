@@ -11,6 +11,8 @@ import com.termux.terminal.TerminalSessionClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStream
@@ -22,6 +24,7 @@ class TerminalSession(
 ) {
     private lateinit var outputStream: OutputStream
     private var started = false
+    private val writeMutex = Mutex()
 
     var onRedraw: (() -> Unit)? = null
     var onDisconnected: (() -> Unit)? = null
@@ -38,11 +41,13 @@ class TerminalSession(
     private val terminalOutput = object : TerminalOutput() {
         override fun write(data: ByteArray, offset: Int, count: Int) {
             scope.launch(Dispatchers.IO) {
-                try {
-                    outputStream.write(data, offset, count)
-                    outputStream.flush()
-                } catch (e: Exception) {
-                    Log.e("TerminalSession", "Write failed", e)
+                writeMutex.withLock {
+                    try {
+                        outputStream.write(data, offset, count)
+                        outputStream.flush()
+                    } catch (e: Exception) {
+                        Log.e("TerminalSession", "Write failed", e)
+                    }
                 }
             }
         }
@@ -208,22 +213,26 @@ class TerminalSession(
     fun writeInput(text: String) {
         val bytes = text.toByteArray()
         scope.launch(Dispatchers.IO) {
-            try {
-                outputStream.write(bytes)
-                outputStream.flush()
-            } catch (e: Exception) {
-                Log.e("TerminalSession", "Write failed", e)
+            writeMutex.withLock {
+                try {
+                    outputStream.write(bytes)
+                    outputStream.flush()
+                } catch (e: Exception) {
+                    Log.e("TerminalSession", "Write failed", e)
+                }
             }
         }
     }
 
     fun writeByte(b: Int) {
         scope.launch(Dispatchers.IO) {
-            try {
-                outputStream.write(b)
-                outputStream.flush()
-            } catch (e: Exception) {
-                Log.e("TerminalSession", "Write failed", e)
+            writeMutex.withLock {
+                try {
+                    outputStream.write(b)
+                    outputStream.flush()
+                } catch (e: Exception) {
+                    Log.e("TerminalSession", "Write failed", e)
+                }
             }
         }
     }
