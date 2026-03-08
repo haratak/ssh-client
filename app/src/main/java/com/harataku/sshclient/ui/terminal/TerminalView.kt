@@ -150,7 +150,7 @@ class TerminalView @JvmOverloads constructor(
         }
 
         override fun onLongPress(e: MotionEvent) {
-            if (swiping) return // Don't select while swiping
+            if (swiping || twoFingerScrolling) return
             val col = (e.x / charWidth).toInt()
             val row = (e.y / charHeight).toInt() - scrollOffset
             selStartCol = col
@@ -328,10 +328,14 @@ class TerminalView @JvmOverloads constructor(
                     twoFingerScrolling = true
                     twoFingerLastY = (event.getY(0) + event.getY(1)) / 2f
                     twoFingerAccumY = 0f
-                    // Cancel any ongoing cursor swipe
+                    // Cancel any ongoing cursor swipe or selection
                     cursorRepeatHandler.removeCallbacks(cursorRepeatRunnable)
                     lastCursorDirection = null
                     swiping = false
+                    if (selecting) clearSelection()
+                    // Cancel GestureDetector's long press detection
+                    gestureDetector.setIsLongpressEnabled(false)
+                    gestureDetector.setIsLongpressEnabled(true)
                     return true
                 }
             }
