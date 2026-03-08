@@ -156,12 +156,14 @@ fun AppNavigation() {
                     connectionState = connectionState,
                     onSessionTab = { sessionName ->
                         if (sessionName != currentSessionName) {
+                            session.suppressDisconnect = true
                             connectViewModel.switchTmuxSession(sessionName) {
                                 session.switchSession()
                             }
                         }
                     },
                     onNewSession = {
+                        session.suppressDisconnect = true
                         connectViewModel.createAndSwitchTmuxSession {
                             session.switchSession()
                         }

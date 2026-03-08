@@ -25,6 +25,8 @@ class TerminalSession(
 
     var onRedraw: (() -> Unit)? = null
     var onDisconnected: (() -> Unit)? = null
+    @Volatile
+    var suppressDisconnect = false
 
     val lock = Object()
 
@@ -117,8 +119,10 @@ class TerminalSession(
             } catch (e: Exception) {
                 Log.e("TerminalSession", "Read failed", e)
             }
-            Log.w("TerminalSession", "Read loop ended, connection lost")
-            onDisconnected?.invoke()
+            if (!suppressDisconnect) {
+                Log.w("TerminalSession", "Read loop ended, connection lost")
+                onDisconnected?.invoke()
+            }
         }
     }
 
@@ -166,6 +170,11 @@ class TerminalSession(
     fun reconnect() {
         try {
             outputStream = sshSessionManager.getOutputStream()
+            val cols = emulator.mColumns
+            val rows = emulator.mRows
+            scope.launch(Dispatchers.IO) {
+                sshSessionManager.resizePty(cols, rows)
+            }
             startRawReading()
         } catch (e: Exception) {
             Log.e("TerminalSession", "Reconnect failed", e)
@@ -177,10 +186,17 @@ class TerminalSession(
      * Clears the screen and starts reading from the new shell.
      */
     fun switchSession() {
+        suppressDisconnect = false
         try {
             outputStream = sshSessionManager.getOutputStream()
             synchronized(lock) {
                 emulator.reset()
+            }
+            // Re-send current terminal size to the new PTY
+            val cols = emulator.mColumns
+            val rows = emulator.mRows
+            scope.launch(Dispatchers.IO) {
+                sshSessionManager.resizePty(cols, rows)
             }
             startRawReading()
             onRedraw?.invoke()
