@@ -30,7 +30,6 @@ val shortcutGroups = listOf(
         ShortcutItem("C-u", ShortcutAction.SendByte(0x15)),
     )),
     ShortcutGroup("Vim", listOf(
-        ShortcutItem("Esc", ShortcutAction.SendByte(0x1B)),
         ShortcutItem(":w", ShortcutAction.SendText("\u001b:w\r")),
         ShortcutItem(":q", ShortcutAction.SendText("\u001b:q\r")),
         ShortcutItem(":wq", ShortcutAction.SendText("\u001b:wq\r")),
@@ -49,6 +48,14 @@ val shortcutGroups = listOf(
         ShortcutItem("prefix %", ShortcutAction.SendText("\u0002%")),
         ShortcutItem("prefix \"", ShortcutAction.SendText("\u0002\"")),
     )),
+    ShortcutGroup("Claude", listOf(
+        ShortcutItem("i", ShortcutAction.SendText("i")),
+        ShortcutItem("S-Tab", ShortcutAction.SendText("\u001b[Z")),
+        ShortcutItem("y", ShortcutAction.SendText("y\r")),
+        ShortcutItem("n", ShortcutAction.SendText("n\r")),
+        ShortcutItem("/compact", ShortcutAction.SendText("/compact\r")),
+        ShortcutItem("/clear", ShortcutAction.SendText("/clear\r")),
+    )),
     ShortcutGroup("Nav", listOf(
         ShortcutItem("Up", ShortcutAction.SendText("\u001b[A")),
         ShortcutItem("Down", ShortcutAction.SendText("\u001b[B")),
@@ -63,7 +70,7 @@ val shortcutGroups = listOf(
 @Composable
 fun ModifierKeyBar(
     onShortcut: (ShortcutAction) -> Unit,
-    onSwitchSession: () -> Unit,
+    onPaste: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var expandedGroup by remember { mutableStateOf<String?>(null) }
@@ -92,19 +99,22 @@ fun ModifierKeyBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             BarButton(
-                label = "Sessions",
-                onClick = onSwitchSession,
-                containerColor = MaterialTheme.colorScheme.tertiary,
-                contentColor = MaterialTheme.colorScheme.onTertiary
+                label = "Esc",
+                onClick = { onShortcut(ShortcutAction.SendByte(0x1B)) },
             )
-
-            Spacer(Modifier.width(2.dp))
 
             BarButton(
                 label = "Enter",
                 onClick = { onShortcut(ShortcutAction.SendByte(0x0D)) },
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+
+            BarButton(
+                label = "Paste",
+                onClick = onPaste,
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
             )
 
             Spacer(Modifier.width(2.dp))

@@ -24,10 +24,10 @@ fun TerminalScreen(
     currentSessionName: String? = null,
     onSessionTab: (String) -> Unit = {},
     onNewSession: () -> Unit = {},
-    onShortcut: (ShortcutAction) -> Unit = {},
-    onSwitchSession: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var terminalView by remember { mutableStateOf<TerminalView?>(null) }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -41,6 +41,7 @@ fun TerminalScreen(
                     view.attachSession(terminalSession)
                     terminalSession.onRedraw = { view.triggerRedraw() }
                     view.post { view.showKeyboard() }
+                    terminalView = view
                 }
             },
             modifier = Modifier.fillMaxSize()
@@ -64,7 +65,7 @@ fun TerminalScreen(
                     is ShortcutAction.SendText -> terminalSession.writeInput(action.text)
                 }
             },
-            onSwitchSession = onSwitchSession,
+            onPaste = { terminalView?.pasteFromClipboard() },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .background(Color(0xFF2D2D2D))
