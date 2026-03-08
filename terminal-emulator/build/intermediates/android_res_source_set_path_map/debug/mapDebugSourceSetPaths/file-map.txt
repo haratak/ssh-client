@@ -1,8 +1,0 @@
-com.termux.emulator.terminal-emulator-pngs-0 /home/harataku/Dev/repos/work/ssh-client/terminal-emulator/build/generated/res/pngs/debug
-com.termux.emulator.terminal-emulator-updated_navigation_xml-1 /home/harataku/Dev/repos/work/ssh-client/terminal-emulator/build/generated/updated_navigation_xml/debug
-com.termux.emulator.terminal-emulator-mergeDebugResources-2 /home/harataku/Dev/repos/work/ssh-client/terminal-emulator/build/intermediates/incremental/debug/mergeDebugResources/merged.dir
-com.termux.emulator.terminal-emulator-mergeDebugResources-3 /home/harataku/Dev/repos/work/ssh-client/terminal-emulator/build/intermediates/incremental/debug/mergeDebugResources/stripped.dir
-com.termux.emulator.terminal-emulator-debug-4 /home/harataku/Dev/repos/work/ssh-client/terminal-emulator/build/intermediates/merged_res/debug/mergeDebugResources
-com.termux.emulator.terminal-emulator-debug-5 /home/harataku/Dev/repos/work/ssh-client/terminal-emulator/build/intermediates/packaged_res/debug/packageDebugResources
-com.termux.emulator.terminal-emulator-debug-6 /home/harataku/Dev/repos/work/ssh-client/terminal-emulator/src/debug/res
-com.termux.emulator.terminal-emulator-main-7 /home/harataku/Dev/repos/work/ssh-client/terminal-emulator/src/main/res
