@@ -1,8 +1,12 @@
 package com.harataku.sshclient.ui.connect
 
+import android.Manifest
 import android.app.Application
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.harataku.sshclient.ssh.ConnectionStore
@@ -62,15 +66,33 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun startForegroundService() {
-        val app = getApplication<Application>()
-        val intent = Intent(app, SshConnectionService::class.java)
-        app.startForegroundService(intent)
+        try {
+            val app = getApplication<Application>()
+            // Check notification permission on Android 13+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val granted = ContextCompat.checkSelfPermission(
+                    app, Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+                if (!granted) {
+                    Log.w("SSH", "POST_NOTIFICATIONS not granted, skipping foreground service")
+                    return
+                }
+            }
+            val intent = Intent(app, SshConnectionService::class.java)
+            app.startForegroundService(intent)
+        } catch (e: Exception) {
+            Log.e("SSH", "Failed to start foreground service", e)
+        }
     }
 
     private fun stopForegroundService() {
-        val app = getApplication<Application>()
-        val intent = Intent(app, SshConnectionService::class.java)
-        app.stopService(intent)
+        try {
+            val app = getApplication<Application>()
+            val intent = Intent(app, SshConnectionService::class.java)
+            app.stopService(intent)
+        } catch (e: Exception) {
+            Log.e("SSH", "Failed to stop foreground service", e)
+        }
     }
 
     /**
