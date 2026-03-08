@@ -108,13 +108,6 @@ fun ModifierKeyBar(
             )
 
             BarButton(
-                label = "Enter",
-                onClick = { onShortcut(ShortcutAction.SendByte(0x0D)) },
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-
-            BarButton(
                 label = "Paste",
                 onClick = onPaste,
                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
