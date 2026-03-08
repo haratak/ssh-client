@@ -224,6 +224,22 @@ class TerminalSession(
         }
     }
 
+    fun writeReplace(deleteCount: Int, newText: String) {
+        scope.launch(Dispatchers.IO) {
+            writeMutex.withLock {
+                try {
+                    repeat(deleteCount) { outputStream.write(0x7F) }
+                    if (newText.isNotEmpty()) {
+                        outputStream.write(newText.toByteArray())
+                    }
+                    outputStream.flush()
+                } catch (e: Exception) {
+                    Log.e("TerminalSession", "WriteReplace failed", e)
+                }
+            }
+        }
+    }
+
     fun writeByte(b: Int) {
         scope.launch(Dispatchers.IO) {
             writeMutex.withLock {
