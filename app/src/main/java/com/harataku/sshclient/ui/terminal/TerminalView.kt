@@ -191,25 +191,20 @@ class TerminalView @JvmOverloads constructor(
         outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN or EditorInfo.IME_FLAG_NO_EXTRACT_UI
         // true = maintain internal Editable so IME (especially voice input) stays connected
         return object : BaseInputConnection(this, true) {
-            // Track composing text we've already sent for incremental updates
+            // Track composing text we've already sent (forward-only, no backspace)
             private var sentComposing = ""
 
             override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
                 val t = text?.toString() ?: ""
                 if (t.startsWith(sentComposing)) {
-                    // Text grew — send only the new part
+                    // Text grew — send only the new part (common case for voice input)
                     val delta = t.substring(sentComposing.length)
                     if (delta.isNotEmpty()) {
                         terminalSession?.writeInput(delta)
                     }
-                } else {
-                    // Text changed — backspace old composing, send new
-                    repeat(sentComposing.length) { terminalSession?.writeByte(0x7F) }
-                    if (t.isNotEmpty()) {
-                        terminalSession?.writeInput(t)
-                    }
+                    sentComposing = t
                 }
-                sentComposing = t
+                // If text changed incompatibly, don't send — wait for commitText
                 return super.setComposingText(text, newCursorPosition)
             }
 
@@ -222,27 +217,20 @@ class TerminalView @JvmOverloads constructor(
 
             override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
                 val t = text?.toString() ?: ""
-                if (sentComposing.isNotEmpty()) {
-                    // We already sent composing text incrementally
-                    if (t.startsWith(sentComposing)) {
-                        // Commit has extra beyond what we sent
-                        val remaining = t.substring(sentComposing.length)
-                        if (remaining.isNotEmpty()) {
-                            terminalSession?.writeInput(remaining)
-                        }
-                    } else {
-                        // Commit differs from composing — backspace and resend
-                        repeat(sentComposing.length) { terminalSession?.writeByte(0x7F) }
-                        if (t.isNotEmpty()) {
-                            terminalSession?.writeInput(t)
-                        }
+                if (sentComposing.isNotEmpty() && t.startsWith(sentComposing)) {
+                    // We already sent composing — just send the remainder
+                    val remaining = t.substring(sentComposing.length)
+                    if (remaining.isNotEmpty()) {
+                        terminalSession?.writeInput(remaining)
                     }
-                } else {
+                } else if (sentComposing.isEmpty()) {
                     // No prior composing — send full text
                     if (t.isNotEmpty()) {
                         terminalSession?.writeInput(t)
                     }
                 }
+                // If commit differs from sentComposing, we accept the mismatch
+                // (terminal already has sentComposing, can't reliably undo)
                 sentComposing = ""
                 val result = super.commitText(text, newCursorPosition)
                 editable?.clear()
