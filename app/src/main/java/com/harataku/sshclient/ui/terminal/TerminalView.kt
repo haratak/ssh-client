@@ -271,6 +271,19 @@ class TerminalView @JvmOverloads constructor(
             }
 
             override fun finishComposingText(): Boolean {
+                // Send any unsent composing text (IME finalized without commitText)
+                if (prevComposing.isNotEmpty()) {
+                    if (sentComposing.isEmpty()) {
+                        // Nothing was sent yet — send all composing text
+                        terminalSession?.writeInput(prevComposing)
+                        sentComposing = prevComposing
+                    } else if (prevComposing.startsWith(sentComposing) && prevComposing != sentComposing) {
+                        // Partially sent — send the rest
+                        val unsent = prevComposing.substring(sentComposing.length)
+                        terminalSession?.writeInput(unsent)
+                        sentComposing = prevComposing
+                    }
+                }
                 needsReset = true
                 prevComposing = ""
                 val result = super.finishComposingText()
