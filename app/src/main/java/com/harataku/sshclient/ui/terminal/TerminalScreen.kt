@@ -33,25 +33,13 @@ fun TerminalScreen(
 ) {
     var terminalView by remember { mutableStateOf<TerminalView?>(null) }
 
-    Box(
+    Column(
         modifier = modifier
             .fillMaxSize()
             .background(Color(0xFF1E1E1E))
             .systemBarsPadding()
             .imePadding()
     ) {
-        AndroidView(
-            factory = { context ->
-                TerminalView(context).also { view ->
-                    view.attachSession(terminalSession)
-                    terminalSession.onRedraw = { view.triggerRedraw() }
-                    view.post { view.showKeyboard() }
-                    terminalView = view
-                }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
-
         // Session tab bar at the top
         if (sessions.isNotEmpty()) {
             SessionTabBar(
@@ -59,45 +47,63 @@ fun TerminalScreen(
                 currentSessionName = currentSessionName,
                 onSessionTab = onSessionTab,
                 onNewSession = onNewSession,
-                modifier = Modifier.align(Alignment.TopCenter)
             )
         }
 
-        // Connection status overlay
-        when (connectionState) {
-            is ConnectionState.Reconnecting -> {
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .background(Color(0xCC000000))
-                        .padding(horizontal = 24.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
-                    )
-                    Text("Reconnecting...", color = Color.White, fontSize = 14.sp)
-                }
-            }
-            is ConnectionState.Disconnected -> {
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .background(Color(0xCC000000))
-                        .padding(horizontal = 24.dp, vertical = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text("Disconnected", color = Color.White, fontSize = 16.sp)
-                    TextButton(onClick = onReconnect) {
-                        Text("Retry", color = Color(0xFF64B5F6), fontSize = 14.sp)
+        // Terminal view fills remaining space
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            AndroidView(
+                factory = { context ->
+                    TerminalView(context).also { view ->
+                        view.attachSession(terminalSession)
+                        terminalSession.onRedraw = { view.triggerRedraw() }
+                        view.post { view.showKeyboard() }
+                        terminalView = view
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+
+            // Connection status overlay
+            when (connectionState) {
+                is ConnectionState.Reconnecting -> {
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .background(Color(0xCC000000))
+                            .padding(horizontal = 24.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                        Text("Reconnecting...", color = Color.White, fontSize = 14.sp)
                     }
                 }
+                is ConnectionState.Disconnected -> {
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .background(Color(0xCC000000))
+                            .padding(horizontal = 24.dp, vertical = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text("Disconnected", color = Color.White, fontSize = 16.sp)
+                        TextButton(onClick = onReconnect) {
+                            Text("Retry", color = Color(0xFF64B5F6), fontSize = 14.sp)
+                        }
+                    }
+                }
+                else -> {}
             }
-            else -> {}
         }
 
         ModifierKeyBar(
@@ -109,7 +115,7 @@ fun TerminalScreen(
             },
             onPaste = { terminalView?.pasteFromClipboard() },
             modifier = Modifier
-                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
                 .background(Color(0xFF2D2D2D))
         )
     }
