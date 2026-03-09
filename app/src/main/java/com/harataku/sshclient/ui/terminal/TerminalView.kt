@@ -24,7 +24,6 @@ import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
-import android.util.Log
 import android.widget.OverScroller
 import com.harataku.sshclient.terminal.TerminalSession
 import com.termux.terminal.TextStyle
@@ -202,9 +201,26 @@ class TerminalView @JvmOverloads constructor(
 
     private fun adjustScroll(delta: Int) {
         val session = terminalSession ?: return
-        val maxScroll = synchronized(session.lock) { session.emulator.screen.activeTranscriptRows }
-        scrollOffset = (scrollOffset + delta).coerceIn(0, maxScroll)
-        invalidate()
+        val isAltBuffer = synchronized(session.lock) { session.emulator.isAlternateBufferActive }
+        if (isAltBuffer) {
+            // In alt buffer (vim, less, etc.), send mouse wheel events
+            // SGR mouse: scroll up = button 64, scroll down = button 65
+            val button = if (delta > 0) 64 else 65
+            val count = abs(delta)
+            // Use center of screen as mouse position
+            val cols = synchronized(session.lock) { session.emulator.mColumns }
+            val rows = synchronized(session.lock) { session.emulator.mRows }
+            val col = cols / 2
+            val row = rows / 2
+            repeat(count) {
+                session.writeInput("\u001b[<$button;$col;${row}M")
+            }
+        } else {
+            // In main buffer, scroll the transcript
+            val maxScroll = synchronized(session.lock) { session.emulator.screen.activeTranscriptRows }
+            scrollOffset = (scrollOffset + delta).coerceIn(0, maxScroll)
+            invalidate()
+        }
     }
 
     fun attachSession(session: TerminalSession) {
@@ -361,7 +377,6 @@ class TerminalView @JvmOverloads constructor(
     }
 
     private fun enterTwoFingerScroll(event: MotionEvent) {
-        Log.d("TerminalView", "enterTwoFingerScroll pointers=${event.pointerCount}")
         twoFingerScrolling = true
         twoFingerLastY = (event.getY(0) + event.getY(1)) / 2f
         twoFingerAccumY = 0f
@@ -491,13 +506,19 @@ class TerminalView @JvmOverloads constructor(
                     val y = i * charHeight
 
                     val startIdx = line.findStartOfColumn(col)
-                    val endIdx = if (col + 1 < cols) line.findStartOfColumn(col + 1) else line.spaceUsed
 
-                    // Determine how many columns this character spans
-                    val cellCols = if (startIdx < endIdx) {
+                    // Determine character width first, then compute endIdx accordingly
+                    val cellCols: Int
+                    val endIdx: Int
+                    if (startIdx < line.spaceUsed) {
                         val codePoint = Character.codePointAt(line.mText, startIdx)
-                        WcWidth.width(codePoint).coerceAtLeast(1)
-                    } else 1
+                        cellCols = WcWidth.width(codePoint).coerceAtLeast(1)
+                        val endCol = col + cellCols
+                        endIdx = if (endCol < cols) line.findStartOfColumn(endCol) else line.spaceUsed
+                    } else {
+                        cellCols = 1
+                        endIdx = startIdx
+                    }
 
                     val cellPixelWidth = cellCols * charWidth
 
