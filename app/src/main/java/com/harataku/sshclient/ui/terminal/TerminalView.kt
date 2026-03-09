@@ -43,6 +43,12 @@ class TerminalView @JvmOverloads constructor(
         textSize = 36f
     }
 
+    private val fallbackPaint = Paint().apply {
+        typeface = Typeface.DEFAULT
+        isAntiAlias = true
+        textSize = 36f
+    }
+
     private val bgPaint = Paint()
 
     private val charWidth = textPaint.measureText("M")
@@ -547,10 +553,12 @@ class TerminalView @JvmOverloads constructor(
                     if (startIdx < endIdx) {
                         val c = line.mText[startIdx]
                         if (c != ' ') {
-                            textPaint.color = foreColor
-                            textPaint.isFakeBoldText = (effect and TextStyle.CHARACTER_ATTRIBUTE_BOLD) != 0
                             val charCount = endIdx - startIdx
-                            canvas.drawText(line.mText, startIdx, charCount, x, y + baselineOffset, textPaint)
+                            val str = String(line.mText, startIdx, charCount)
+                            val paint = if (textPaint.hasGlyph(str)) textPaint else fallbackPaint
+                            paint.color = foreColor
+                            paint.isFakeBoldText = (effect and TextStyle.CHARACTER_ATTRIBUTE_BOLD) != 0
+                            canvas.drawText(line.mText, startIdx, charCount, x, y + baselineOffset, paint)
                         }
                     }
 
