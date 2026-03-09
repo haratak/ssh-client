@@ -6,6 +6,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -102,6 +103,17 @@ fun ModifierKeyBar(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val context = LocalContext.current
+            val versionName = remember {
+                context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
+            }
+            Text(
+                text = versionName,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                modifier = Modifier.padding(end = 2.dp)
+            )
+
             BarButton(
                 label = "Esc",
                 onClick = { onShortcut(ShortcutAction.SendByte(0x1B)) },
