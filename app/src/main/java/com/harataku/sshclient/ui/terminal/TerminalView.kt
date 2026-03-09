@@ -24,6 +24,7 @@ import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
+import android.util.Log
 import android.widget.OverScroller
 import com.harataku.sshclient.terminal.TerminalSession
 import com.termux.terminal.TextStyle
@@ -202,6 +203,7 @@ class TerminalView @JvmOverloads constructor(
     private fun adjustScroll(delta: Int) {
         val session = terminalSession ?: return
         val isAltBuffer = synchronized(session.lock) { session.emulator.isAlternateBufferActive }
+        Log.d("TwoFinger", "adjustScroll delta=$delta isAlt=$isAltBuffer scrollOffset=$scrollOffset")
         if (isAltBuffer) {
             // In alt buffer (vim, less, etc.), send mouse wheel events
             // SGR mouse: scroll up = button 64, scroll down = button 65
@@ -377,6 +379,7 @@ class TerminalView @JvmOverloads constructor(
     }
 
     private fun enterTwoFingerScroll(event: MotionEvent) {
+        Log.d("TwoFinger", "enterTwoFingerScroll pointers=${event.pointerCount} action=${event.actionMasked}")
         twoFingerScrolling = true
         twoFingerLastY = (event.getY(0) + event.getY(1)) / 2f
         twoFingerAccumY = 0f
@@ -412,12 +415,14 @@ class TerminalView @JvmOverloads constructor(
                         twoFingerAccumY += dy
                         val rows = (twoFingerAccumY / charHeight).toInt()
                         if (rows != 0) {
+                            Log.d("TwoFinger", "scroll rows=$rows accum=$twoFingerAccumY charHeight=$charHeight")
                             adjustScroll(rows)
                             twoFingerAccumY -= rows * charHeight
                         }
                     }
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    Log.d("TwoFinger", "end scroll")
                     twoFingerScrolling = false
                 }
             }
