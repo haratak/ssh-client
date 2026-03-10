@@ -154,6 +154,7 @@ fun AppNavigation() {
 
                 TerminalScreen(
                     terminalSession = session,
+                    sshSessionManager = sshSessionManager,
                     sessions = sessions,
                     currentSessionName = currentSessionName,
                     connectionState = connectionState,

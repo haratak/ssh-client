@@ -1,5 +1,10 @@
 package com.harataku.sshclient.ui.terminal
 
+import android.net.Uri
+import android.provider.OpenableColumns
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -13,16 +18,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.harataku.sshclient.ssh.SshSessionManager
 import com.harataku.sshclient.terminal.TerminalSession
 import com.harataku.sshclient.tmux.TmuxSessionInfo
 import com.harataku.sshclient.ui.connect.ConnectionState
+import kotlinx.coroutines.launch
 
 @Composable
 fun TerminalScreen(
     terminalSession: TerminalSession,
+    sshSessionManager: SshSessionManager? = null,
     sessions: List<TmuxSessionInfo> = emptyList(),
     currentSessionName: String? = null,
     connectionState: ConnectionState = ConnectionState.Connected,
@@ -32,6 +41,40 @@ fun TerminalScreen(
     modifier: Modifier = Modifier
 ) {
     var terminalView by remember { mutableStateOf<TerminalView?>(null) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var uploading by remember { mutableStateOf(false) }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri == null || sshSessionManager == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            uploading = true
+            try {
+                // Get file name from URI
+                val fileName = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    cursor.moveToFirst()
+                    cursor.getString(nameIndex)
+                } ?: "upload_${System.currentTimeMillis()}"
+
+                // Get remote cwd
+                val remotePath = sshSessionManager.getTmuxPaneCwd()
+
+                // Upload via SFTP
+                context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    sshSessionManager.uploadFile(inputStream, remotePath, fileName)
+                }
+
+                Toast.makeText(context, "$fileName → $remotePath", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Upload failed: ${e.message}", Toast.LENGTH_LONG).show()
+            } finally {
+                uploading = false
+            }
+        }
+    }
 
     Column(
         modifier = modifier
@@ -106,6 +149,24 @@ fun TerminalScreen(
             }
         }
 
+        if (uploading) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF2D2D2D))
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+                Text("Uploading...", color = Color.White, fontSize = 13.sp)
+            }
+        }
+
         ModifierKeyBar(
             onShortcut = { action ->
                 when (action) {
@@ -114,6 +175,7 @@ fun TerminalScreen(
                 }
             },
             onPaste = { terminalView?.pasteFromClipboard() },
+            onUpload = { filePickerLauncher.launch("*/*") },
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color(0xFF2D2D2D))

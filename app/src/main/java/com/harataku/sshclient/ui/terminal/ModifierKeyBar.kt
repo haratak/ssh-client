@@ -76,6 +76,7 @@ val shortcutGroups = listOf(
 fun ModifierKeyBar(
     onShortcut: (ShortcutAction) -> Unit,
     onPaste: () -> Unit = {},
+    onUpload: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var expandedGroup by remember { mutableStateOf<String?>(null) }
@@ -122,6 +123,13 @@ fun ModifierKeyBar(
             BarButton(
                 label = "Paste",
                 onClick = onPaste,
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+
+            BarButton(
+                label = "Upload",
+                onClick = onUpload,
                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer
             )

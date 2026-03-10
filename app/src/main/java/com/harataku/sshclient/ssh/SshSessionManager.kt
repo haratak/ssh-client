@@ -7,6 +7,7 @@ import kotlinx.coroutines.withContext
 import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.connection.channel.direct.Session
 import net.schmizz.sshj.transport.verification.PromiscuousVerifier
+import net.schmizz.sshj.sftp.SFTPClient
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -146,6 +147,46 @@ class SshSessionManager {
         session = null
         _inputStream = null
         _outputStream = null
+    }
+
+    /**
+     * Get the current working directory of the active tmux pane.
+     */
+    suspend fun getTmuxPaneCwd(): String = withContext(Dispatchers.IO) {
+        exec("tmux display-message -p '#{pane_current_path}'")
+    }
+
+    /**
+     * Upload a file via SFTP to the specified remote directory.
+     */
+    suspend fun uploadFile(
+        inputStream: InputStream,
+        remotePath: String,
+        fileName: String
+    ) = withContext(Dispatchers.IO) {
+        val client = sshClient ?: throw IllegalStateException("Not connected")
+        val sftp: SFTPClient = client.newSFTPClient()
+        try {
+            val fullPath = "$remotePath/$fileName"
+            val remoteFile = sftp.open(fullPath,
+                java.util.EnumSet.of(
+                    net.schmizz.sshj.sftp.OpenMode.WRITE,
+                    net.schmizz.sshj.sftp.OpenMode.CREAT,
+                    net.schmizz.sshj.sftp.OpenMode.TRUNC
+                )
+            )
+            try {
+                val out = remoteFile.RemoteFileOutputStream()
+                inputStream.copyTo(out)
+                out.flush()
+                out.close()
+            } finally {
+                remoteFile.close()
+            }
+            Log.d("SSH", "Uploaded $fileName to $remotePath")
+        } finally {
+            sftp.close()
+        }
     }
 
     fun isConnected(): Boolean = sshClient?.isConnected == true
