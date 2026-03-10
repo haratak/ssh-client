@@ -59,15 +59,20 @@ fun TerminalScreen(
                     cursor.getString(nameIndex)
                 } ?: "upload_${System.currentTimeMillis()}"
 
-                // Get remote cwd
-                val remotePath = sshSessionManager.getTmuxPaneCwd()
+                // Get remote cwd + create uploads/ subdirectory
+                val cwd = sshSessionManager.getTmuxPaneCwd()
+                val remotePath = "$cwd/uploads"
+                sshSessionManager.exec("mkdir -p '$remotePath'")
 
                 // Upload via SFTP
                 context.contentResolver.openInputStream(uri)?.use { inputStream ->
                     sshSessionManager.uploadFile(inputStream, remotePath, fileName)
                 }
 
-                Toast.makeText(context, "$fileName → $remotePath", Toast.LENGTH_SHORT).show()
+                // Add uploads/ to .gitignore if not already there
+                sshSessionManager.exec("grep -qxF 'uploads/' '$cwd/.gitignore' 2>/dev/null || echo 'uploads/' >> '$cwd/.gitignore'")
+
+                Toast.makeText(context, "$fileName → uploads/", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Toast.makeText(context, "Upload failed: ${e.message}", Toast.LENGTH_LONG).show()
             } finally {
