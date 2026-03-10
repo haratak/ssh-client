@@ -52,6 +52,8 @@ val shortcutGroups = listOf(
         ShortcutItem("縦分割", ShortcutAction.SendText("\u0002\"")),
     )),
     ShortcutGroup("Claude", listOf(
+        ShortcutItem("起動", ShortcutAction.SendText("claude\r")),
+        ShortcutItem("再開", ShortcutAction.SendText("claude --continue\r")),
         ShortcutItem("入力", ShortcutAction.SendText("i")),
         ShortcutItem("モード切替", ShortcutAction.SendText("\u001b[Z")),
         ShortcutItem("承認", ShortcutAction.SendText("y\r")),
