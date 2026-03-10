@@ -265,19 +265,56 @@ class TerminalView @JvmOverloads constructor(
         outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN or EditorInfo.IME_FLAG_NO_EXTRACT_UI
         // true = maintain internal Editable so IME (especially voice input) stays connected
         return object : BaseInputConnection(this, true) {
-            private var composing = ""  // current composing text (not yet sent)
+            private var sentComposing = ""  // text sent to terminal during current composing
+            private var totalSent = ""      // text sent across commit/finish boundaries (voice dedup)
+            private var prevComposing = ""  // last composing text from IME
 
             override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
-                // Just track — don't send anything until commit/finish
-                composing = text?.toString() ?: ""
+                val t = text?.toString() ?: ""
+                val baseline = sentComposing.ifEmpty { totalSent }
+
+                if (baseline.isNotEmpty() && t.startsWith(baseline)) {
+                    // Growing from what we already sent — send only the new part
+                    val unsent = t.substring(baseline.length)
+                    if (unsent.isNotEmpty()) {
+                        terminalSession?.writeInput(unsent)
+                        sentComposing = t
+                    }
+                } else if (baseline.isEmpty() && t.isNotEmpty()) {
+                    // Nothing sent yet — send everything
+                    terminalSession?.writeInput(t)
+                    sentComposing = t
+                }
+                // If incompatible (e.g. Japanese conversion "ka"→"か"), just buffer.
+                // Do NOT send or replace — commit/finish will handle it.
+
+                prevComposing = t
                 return super.setComposingText(text, newCursorPosition)
             }
 
             override fun finishComposingText(): Boolean {
-                if (composing.isNotEmpty()) {
-                    terminalSession?.writeInput(composing)
-                    composing = ""
+                if (prevComposing.isNotEmpty()) {
+                    val baseline = sentComposing.ifEmpty { totalSent }
+                    if (baseline.isEmpty()) {
+                        terminalSession?.writeInput(prevComposing)
+                    } else if (prevComposing.startsWith(baseline)) {
+                        val unsent = prevComposing.substring(baseline.length)
+                        if (unsent.isNotEmpty()) {
+                            terminalSession?.writeInput(unsent)
+                        }
+                    } else if (sentComposing.isNotEmpty()) {
+                        // Incompatible (e.g. Japanese) — replace what we sent in this session
+                        terminalSession?.writeReplace(sentComposing.length, prevComposing)
+                    }
                 }
+                // Preserve for cross-boundary dedup (voice pauses)
+                totalSent = if (prevComposing.isNotEmpty()) {
+                    if (sentComposing.isNotEmpty()) prevComposing else totalSent
+                } else {
+                    sentComposing.ifEmpty { totalSent }
+                }
+                sentComposing = ""
+                prevComposing = ""
                 val result = super.finishComposingText()
                 editable?.clear()
                 return result
@@ -285,10 +322,26 @@ class TerminalView @JvmOverloads constructor(
 
             override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
                 val t = text?.toString() ?: ""
-                if (t.isNotEmpty()) {
-                    terminalSession?.writeInput(t)
+                if (sentComposing.isNotEmpty()) {
+                    // Was composing — dedup against what we sent
+                    if (t.startsWith(sentComposing)) {
+                        val remaining = t.substring(sentComposing.length)
+                        if (remaining.isNotEmpty()) terminalSession?.writeInput(remaining)
+                    } else {
+                        // Mismatch (Japanese conversion) — replace
+                        terminalSession?.writeReplace(sentComposing.length, t)
+                    }
+                } else if (totalSent.isNotEmpty() && t.startsWith(totalSent)) {
+                    // Cross-boundary voice continuation
+                    val remaining = t.substring(totalSent.length)
+                    if (remaining.isNotEmpty()) terminalSession?.writeInput(remaining)
+                } else {
+                    // Fresh commit (keyboard typing, no composing)
+                    if (t.isNotEmpty()) terminalSession?.writeInput(t)
                 }
-                composing = ""
+                totalSent = t
+                sentComposing = ""
+                prevComposing = ""
                 val result = super.commitText(text, newCursorPosition)
                 editable?.clear()
                 return result
