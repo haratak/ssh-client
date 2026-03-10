@@ -1,10 +1,11 @@
 package com.harataku.sshclient.navigation
 
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -13,11 +14,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.harataku.sshclient.updater.AppUpdater
+import com.harataku.sshclient.updater.UpdateInfo
+import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -35,8 +40,54 @@ fun AppNavigation() {
     val navController = rememberNavController()
     val connectViewModel: ConnectViewModel = viewModel()
 
-    // Show crash log if exists
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // Update check
+    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+    var updating by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        updateInfo = AppUpdater.checkForUpdate(context)
+    }
+    if (updateInfo != null) {
+        AlertDialog(
+            onDismissRequest = { if (!updating) updateInfo = null },
+            title = { Text("Update Available") },
+            text = { Text("v${updateInfo!!.version} is available. Update now?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            updating = true
+                            try {
+                                AppUpdater.downloadAndInstall(context, updateInfo!!)
+                            } finally {
+                                updating = false
+                            }
+                        }
+                    },
+                    enabled = !updating
+                ) {
+                    if (updating) {
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Downloading...")
+                        }
+                    } else {
+                        Text("Update")
+                    }
+                }
+            },
+            dismissButton = {
+                if (!updating) {
+                    TextButton(onClick = { updateInfo = null }) { Text("Later") }
+                }
+            }
+        )
+    }
+
+    // Show crash log if exists
     var crashLog by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
         val file = File(context.filesDir, "crash.log")
