@@ -265,46 +265,33 @@ class TerminalView @JvmOverloads constructor(
         outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN or EditorInfo.IME_FLAG_NO_EXTRACT_UI
         // true = maintain internal Editable so IME (especially voice input) stays connected
         return object : BaseInputConnection(this, true) {
-            private var sentComposing = ""   // what we've sent to terminal during composing
+            private var sentComposing = ""   // what we've sent during current composing session
             private var prevComposing = ""   // previous composing text from IME
-            private var needsReset = false   // reset sentComposing on next composing session
+            private var totalSent = ""       // total text sent across commit boundaries (for voice dedup)
 
             override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
                 val t = text?.toString() ?: ""
-                if (needsReset) {
-                    // Don't clear sentComposing — keep it for dedup after voice pause/resume
-                    needsReset = false
-                }
 
-                val isGrowing = prevComposing.isNotEmpty() && t.startsWith(prevComposing)
-                val delta = if (isGrowing) t.substring(prevComposing.length) else ""
+                // Determine the effective "already sent" baseline for dedup
+                val baseline = if (sentComposing.isNotEmpty()) sentComposing else totalSent
 
-                // Voice input pattern: multi-char delta growth
-                // Keyboard types 1 char at a time, voice adds whole words
-                if (isGrowing && delta.length > 1 && t.startsWith(sentComposing)) {
-                    val unsent = t.substring(sentComposing.length)
+                if (baseline.isNotEmpty() && t.startsWith(baseline)) {
+                    // Text grows from what we already sent — only send the new part
+                    val unsent = t.substring(baseline.length)
                     if (unsent.isNotEmpty()) {
                         terminalSession?.writeInput(unsent)
                         sentComposing = t
                     }
-                } else if (prevComposing.isEmpty() && t.length > 1) {
-                    // First composing text is already multi-char = voice input
-                    // Check against sentComposing to avoid re-sending after voice pause/resume
-                    if (sentComposing.isNotEmpty() && t.startsWith(sentComposing)) {
-                        val unsent = t.substring(sentComposing.length)
-                        if (unsent.isNotEmpty()) {
-                            terminalSession?.writeInput(unsent)
-                            sentComposing = t
-                        }
-                    } else {
-                        terminalSession?.writeInput(t)
-                        sentComposing = t
-                    }
-                } else if (!isGrowing && sentComposing.isNotEmpty()) {
-                    // Incompatible change — check if new text overlaps with what we sent
-                    if (t.isNotEmpty() && !t.startsWith(sentComposing) && !sentComposing.startsWith(t)) {
-                        sentComposing = ""
-                    }
+                } else if (baseline.isEmpty() && t.isNotEmpty()) {
+                    // Nothing sent yet — send everything
+                    terminalSession?.writeInput(t)
+                    sentComposing = t
+                } else if (t.isNotEmpty() && !t.startsWith(baseline) && !baseline.startsWith(t)) {
+                    // Incompatible text — reset tracking and send new text
+                    totalSent = ""
+                    sentComposing = ""
+                    terminalSession?.writeReplace(prevComposing.length, t)
+                    sentComposing = t
                 }
 
                 prevComposing = t
@@ -314,18 +301,20 @@ class TerminalView @JvmOverloads constructor(
             override fun finishComposingText(): Boolean {
                 // Send any unsent composing text (IME finalized without commitText)
                 if (prevComposing.isNotEmpty()) {
-                    if (sentComposing.isEmpty()) {
-                        // Nothing was sent yet — send all composing text
+                    if (sentComposing.isEmpty() && totalSent.isEmpty()) {
                         terminalSession?.writeInput(prevComposing)
                         sentComposing = prevComposing
-                    } else if (prevComposing.startsWith(sentComposing) && prevComposing != sentComposing) {
-                        // Partially sent — send the rest
-                        val unsent = prevComposing.substring(sentComposing.length)
-                        terminalSession?.writeInput(unsent)
-                        sentComposing = prevComposing
+                    } else {
+                        val baseline = if (sentComposing.isNotEmpty()) sentComposing else totalSent
+                        if (prevComposing.startsWith(baseline) && prevComposing != baseline) {
+                            val unsent = prevComposing.substring(baseline.length)
+                            terminalSession?.writeInput(unsent)
+                            sentComposing = prevComposing
+                        }
                     }
                 }
-                needsReset = true
+                totalSent = sentComposing
+                sentComposing = ""
                 prevComposing = ""
                 val result = super.finishComposingText()
                 editable?.clear()
@@ -334,10 +323,10 @@ class TerminalView @JvmOverloads constructor(
 
             override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
                 val t = text?.toString() ?: ""
-                needsReset = false
-                if (sentComposing.isNotEmpty()) {
-                    if (t.startsWith(sentComposing)) {
-                        val remaining = t.substring(sentComposing.length)
+                val baseline = if (sentComposing.isNotEmpty()) sentComposing else totalSent
+                if (baseline.isNotEmpty()) {
+                    if (t.startsWith(baseline)) {
+                        val remaining = t.substring(baseline.length)
                         if (remaining.isNotEmpty()) {
                             terminalSession?.writeInput(remaining)
                         }
@@ -350,6 +339,8 @@ class TerminalView @JvmOverloads constructor(
                         terminalSession?.writeInput(t)
                     }
                 }
+                // Preserve what was committed as totalSent for voice dedup across boundaries
+                totalSent = t
                 sentComposing = ""
                 prevComposing = ""
                 val result = super.commitText(text, newCursorPosition)
