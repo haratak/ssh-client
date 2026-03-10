@@ -11,7 +11,6 @@ import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import android.util.Log
 import android.text.InputType
 import android.util.AttributeSet
 import android.view.ActionMode
@@ -266,64 +265,19 @@ class TerminalView @JvmOverloads constructor(
         outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN or EditorInfo.IME_FLAG_NO_EXTRACT_UI
         // true = maintain internal Editable so IME (especially voice input) stays connected
         return object : BaseInputConnection(this, true) {
-            private var sentComposing = ""   // what we've sent during current composing session
-            private var prevComposing = ""   // previous composing text from IME
-            private var totalSent = ""       // total text sent across commit boundaries (for voice dedup)
+            private var composing = ""  // current composing text (not yet sent)
 
             override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
-                val t = text?.toString() ?: ""
-                val baseline = if (sentComposing.isNotEmpty()) sentComposing else totalSent
-                Log.d("IME", "setComposing: t=\"$t\" baseline=\"$baseline\" sent=\"$sentComposing\" total=\"$totalSent\" prev=\"$prevComposing\"")
-
-                if (baseline.isNotEmpty() && t.startsWith(baseline)) {
-                    val unsent = t.substring(baseline.length)
-                    if (unsent.isNotEmpty()) {
-                        Log.d("IME", "  -> SEND unsent: \"$unsent\"")
-                        terminalSession?.writeInput(unsent)
-                        sentComposing = t
-                    } else {
-                        Log.d("IME", "  -> SKIP (no new text)")
-                    }
-                } else if (baseline.isEmpty() && t.isNotEmpty()) {
-                    Log.d("IME", "  -> SEND all: \"$t\"")
-                    terminalSession?.writeInput(t)
-                    sentComposing = t
-                } else if (t.isNotEmpty() && !t.startsWith(baseline) && !baseline.startsWith(t)) {
-                    Log.d("IME", "  -> REPLACE incompatible")
-                    totalSent = ""
-                    sentComposing = ""
-                    terminalSession?.writeReplace(prevComposing.length, t)
-                    sentComposing = t
-                } else {
-                    Log.d("IME", "  -> SKIP (baseline prefix of t)")
-                }
-
-                prevComposing = t
+                // Just track — don't send anything until commit/finish
+                composing = text?.toString() ?: ""
                 return super.setComposingText(text, newCursorPosition)
             }
 
             override fun finishComposingText(): Boolean {
-                Log.d("IME", "finishComposing: prev=\"$prevComposing\" sent=\"$sentComposing\" total=\"$totalSent\"")
-                if (prevComposing.isNotEmpty()) {
-                    if (sentComposing.isEmpty() && totalSent.isEmpty()) {
-                        Log.d("IME", "  -> SEND all prev: \"$prevComposing\"")
-                        terminalSession?.writeInput(prevComposing)
-                        sentComposing = prevComposing
-                    } else {
-                        val baseline = if (sentComposing.isNotEmpty()) sentComposing else totalSent
-                        if (prevComposing.startsWith(baseline) && prevComposing != baseline) {
-                            val unsent = prevComposing.substring(baseline.length)
-                            Log.d("IME", "  -> SEND unsent: \"$unsent\"")
-                            terminalSession?.writeInput(unsent)
-                            sentComposing = prevComposing
-                        } else {
-                            Log.d("IME", "  -> SKIP (already sent)")
-                        }
-                    }
+                if (composing.isNotEmpty()) {
+                    terminalSession?.writeInput(composing)
+                    composing = ""
                 }
-                totalSent = sentComposing
-                sentComposing = ""
-                prevComposing = ""
                 val result = super.finishComposingText()
                 editable?.clear()
                 return result
@@ -331,30 +285,10 @@ class TerminalView @JvmOverloads constructor(
 
             override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
                 val t = text?.toString() ?: ""
-                val baseline = if (sentComposing.isNotEmpty()) sentComposing else totalSent
-                Log.d("IME", "commitText: t=\"$t\" baseline=\"$baseline\" sent=\"$sentComposing\" total=\"$totalSent\"")
-                if (baseline.isNotEmpty()) {
-                    if (t.startsWith(baseline)) {
-                        val remaining = t.substring(baseline.length)
-                        if (remaining.isNotEmpty()) {
-                            Log.d("IME", "  -> SEND remaining: \"$remaining\"")
-                            terminalSession?.writeInput(remaining)
-                        } else {
-                            Log.d("IME", "  -> SKIP (already sent)")
-                        }
-                    } else {
-                        Log.d("IME", "  -> REPLACE: delete ${sentComposing.length} send \"$t\"")
-                        terminalSession?.writeReplace(sentComposing.length, t)
-                    }
-                } else {
-                    if (t.isNotEmpty()) {
-                        Log.d("IME", "  -> SEND all: \"$t\"")
-                        terminalSession?.writeInput(t)
-                    }
+                if (t.isNotEmpty()) {
+                    terminalSession?.writeInput(t)
                 }
-                totalSent = t
-                sentComposing = ""
-                prevComposing = ""
+                composing = ""
                 val result = super.commitText(text, newCursorPosition)
                 editable?.clear()
                 return result
