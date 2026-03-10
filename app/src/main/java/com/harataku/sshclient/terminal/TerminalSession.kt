@@ -2,9 +2,6 @@ package com.harataku.sshclient.terminal
 
 import android.util.Log
 import com.harataku.sshclient.ssh.SshSessionManager
-import com.harataku.sshclient.tmux.TmuxControlModeParser
-import com.harataku.sshclient.tmux.TmuxController
-import com.harataku.sshclient.tmux.TmuxEvent
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalOutput
 import com.termux.terminal.TerminalSessionClient
@@ -13,16 +10,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.io.OutputStream
 
 class TerminalSession(
     private val sshSessionManager: SshSessionManager,
     private val scope: CoroutineScope,
-    val useTmux: Boolean = false
 ) {
     private lateinit var outputStream: OutputStream
+    @Volatile
     private var started = false
     private val writeMutex = Mutex()
 
@@ -32,11 +27,6 @@ class TerminalSession(
     var suppressDisconnect = false
 
     val lock = Object()
-
-    var tmuxController: TmuxController? = null
-        private set
-
-    private val tmuxParser = if (useTmux) TmuxControlModeParser() else null
 
     private val terminalOutput = object : TerminalOutput() {
         override fun write(data: ByteArray, offset: Int, count: Int) {
@@ -99,13 +89,7 @@ class TerminalSession(
 
     private fun startReading() {
         outputStream = sshSessionManager.getOutputStream()
-
-        if (useTmux) {
-            tmuxController = TmuxController(outputStream, scope)
-            startTmuxReading()
-        } else {
-            startRawReading()
-        }
+        startRawReading()
     }
 
     private fun startRawReading() {
@@ -128,47 +112,6 @@ class TerminalSession(
                 Log.w("TerminalSession", "Read loop ended, connection lost")
                 onDisconnected?.invoke()
             }
-        }
-    }
-
-    private fun startTmuxReading() {
-        val inputStream = sshSessionManager.getInputStream()
-        val reader = BufferedReader(InputStreamReader(inputStream))
-        val parser = tmuxParser!!
-        val controller = tmuxController!!
-
-        scope.launch(Dispatchers.IO) {
-            try {
-                while (true) {
-                    val line = reader.readLine() ?: break
-                    Log.d("TmuxRead", line)
-
-                    // tmux control mode lines start with %
-                    if (!line.startsWith("%")) continue
-
-                    val event = parser.parseLine(line) ?: continue
-
-                    when (event) {
-                        is TmuxEvent.Output -> {
-                            synchronized(lock) {
-                                emulator.append(event.data, event.data.size)
-                            }
-                            onRedraw?.invoke()
-                        }
-                        else -> {
-                            controller.handleEvent(event)
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("TerminalSession", "Tmux read failed", e)
-            }
-        }
-
-        // Request initial session list after a short delay
-        scope.launch(Dispatchers.IO) {
-            kotlinx.coroutines.delay(1000)
-            controller.listSessions()
         }
     }
 

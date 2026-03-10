@@ -23,21 +23,22 @@ Android SSH client with tmux session support. Kotlin + Jetpack Compose.
 - UI: `app/.../ui/connect/` - ConnectScreen, ConnectViewModel
 - UI: `app/.../ui/tmux/` - TmuxSessionListScreen
 - Navigation: `app/.../navigation/AppNavigation.kt`
-- tmux: `app/.../tmux/` - TmuxControlModeParser, TmuxController, TmuxEvent (currently unused, kept for future -CC mode)
+- tmux: `app/.../tmux/` - TmuxSessionInfo (data class for session listing)
+- Updater: `app/.../updater/` - AppUpdater (in-app update from GitHub Releases)
 
 ## Key Architecture Decisions
 - TerminalView is a custom Android View (not Compose) for soft keyboard via onCreateInputConnection
 - Thread sync: `synchronized(session.lock)` between IO read thread and UI draw thread
 - PTY resize deferred until View is measured (onSizeChanged)
 - tmux sessions managed via exec channels; terminal uses plain `tmux attach-session` (not -CC control mode)
-- ShortcutBar overlays terminal (Box layout) to avoid resize on popup toggle
+- Terminal layout: Column (tab bar → terminal → shortcut bar) to avoid overlap
 - BouncyCastle provider registered in SshClientApp.onCreate()
 
 ## Tests
 ```bash
 ./gradlew test
 ```
-- TmuxControlModeParserTest: unit tests for tmux protocol parsing
+- (currently no unit tests)
 
 ## Release
 `/release` スキルを使用する。

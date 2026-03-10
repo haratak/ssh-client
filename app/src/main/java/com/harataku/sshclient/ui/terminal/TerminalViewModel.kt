@@ -10,8 +10,8 @@ class TerminalViewModel : ViewModel() {
     var terminalSession: TerminalSession? = null
         private set
 
-    fun init(sshSessionManager: SshSessionManager, useTmux: Boolean = false) {
+    fun init(sshSessionManager: SshSessionManager) {
         if (terminalSession != null) return
-        terminalSession = TerminalSession(sshSessionManager, viewModelScope, useTmux)
+        terminalSession = TerminalSession(sshSessionManager, viewModelScope)
     }
 }

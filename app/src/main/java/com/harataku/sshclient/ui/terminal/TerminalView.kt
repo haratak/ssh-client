@@ -233,10 +233,19 @@ class TerminalView @JvmOverloads constructor(
         terminalSession = session
     }
 
+    private var redrawPending = false
+
     fun triggerRedraw() {
         // Auto-scroll to bottom when new data arrives and user is at bottom
         if (scrollOffset <= 1) scrollOffset = 0
-        postInvalidate()
+        // Batch redraws: only post one invalidate per frame
+        if (!redrawPending) {
+            redrawPending = true
+            postOnAnimation {
+                redrawPending = false
+                invalidate()
+            }
+        }
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -263,7 +272,7 @@ class TerminalView @JvmOverloads constructor(
             override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
                 val t = text?.toString() ?: ""
                 if (needsReset) {
-                    sentComposing = ""
+                    // Don't clear sentComposing — keep it for dedup after voice pause/resume
                     needsReset = false
                 }
 
@@ -280,12 +289,22 @@ class TerminalView @JvmOverloads constructor(
                     }
                 } else if (prevComposing.isEmpty() && t.length > 1) {
                     // First composing text is already multi-char = voice input
-                    terminalSession?.writeInput(t)
-                    sentComposing = t
+                    // Check against sentComposing to avoid re-sending after voice pause/resume
+                    if (sentComposing.isNotEmpty() && t.startsWith(sentComposing)) {
+                        val unsent = t.substring(sentComposing.length)
+                        if (unsent.isNotEmpty()) {
+                            terminalSession?.writeInput(unsent)
+                            sentComposing = t
+                        }
+                    } else {
+                        terminalSession?.writeInput(t)
+                        sentComposing = t
+                    }
                 } else if (!isGrowing && sentComposing.isNotEmpty()) {
-                    // Incompatible change (voice paused & restarted, or conversion)
-                    // Keep what we already sent, start fresh
-                    sentComposing = ""
+                    // Incompatible change — check if new text overlaps with what we sent
+                    if (t.isNotEmpty() && !t.startsWith(sentComposing) && !sentComposing.startsWith(t)) {
+                        sentComposing = ""
+                    }
                 }
 
                 prevComposing = t

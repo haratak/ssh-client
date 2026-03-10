@@ -138,7 +138,7 @@ fun AppNavigation() {
             val currentSessionName by connectViewModel.currentSessionName.collectAsState()
             val terminalViewModel: TerminalViewModel = viewModel()
             val sshSessionManager = remember { connectViewModel.sshSessionManager }
-            terminalViewModel.init(sshSessionManager, useTmux = false)
+            terminalViewModel.init(sshSessionManager)
 
             val connectionState by connectViewModel.connectionState.collectAsState()
 
