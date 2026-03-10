@@ -41,6 +41,7 @@ fun TerminalScreen(
     modifier: Modifier = Modifier
 ) {
     var terminalView by remember { mutableStateOf<TerminalView?>(null) }
+    var composingText by remember { mutableStateOf("") }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var uploading by remember { mutableStateOf(false) }
@@ -109,12 +110,27 @@ fun TerminalScreen(
                     TerminalView(context).also { view ->
                         view.attachSession(terminalSession)
                         terminalSession.onRedraw = { view.triggerRedraw() }
+                        view.onComposingTextChanged = { composingText = it }
                         view.post { view.showKeyboard() }
                         terminalView = view
                     }
                 },
                 modifier = Modifier.fillMaxSize()
             )
+
+            // Composing text preview (voice input)
+            if (composingText.isNotEmpty()) {
+                Text(
+                    text = composingText,
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth()
+                        .background(Color(0xCC000000))
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                )
+            }
 
             // Connection status overlay
             when (connectionState) {

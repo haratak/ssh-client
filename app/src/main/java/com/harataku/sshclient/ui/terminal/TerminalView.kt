@@ -36,6 +36,7 @@ class TerminalView @JvmOverloads constructor(
 ) : View(context, attrs) {
 
     private var terminalSession: TerminalSession? = null
+    var onComposingTextChanged: ((String) -> Unit)? = null
 
     private val textPaint = Paint().apply {
         typeface = Typeface.MONOSPACE
@@ -268,8 +269,8 @@ class TerminalView @JvmOverloads constructor(
             private var composing = ""  // current composing text (not yet sent)
 
             override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
-                // Just track — don't send anything until commit/finish
                 composing = text?.toString() ?: ""
+                onComposingTextChanged?.invoke(composing)
                 return super.setComposingText(text, newCursorPosition)
             }
 
@@ -278,6 +279,7 @@ class TerminalView @JvmOverloads constructor(
                     terminalSession?.writeInput(composing)
                     composing = ""
                 }
+                onComposingTextChanged?.invoke("")
                 val result = super.finishComposingText()
                 editable?.clear()
                 return result
@@ -289,6 +291,7 @@ class TerminalView @JvmOverloads constructor(
                     terminalSession?.writeInput(t)
                 }
                 composing = ""
+                onComposingTextChanged?.invoke("")
                 val result = super.commitText(text, newCursorPosition)
                 editable?.clear()
                 return result
