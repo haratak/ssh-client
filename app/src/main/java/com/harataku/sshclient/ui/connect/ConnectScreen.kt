@@ -3,10 +3,7 @@ package com.harataku.sshclient.ui.connect
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -15,6 +12,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.harataku.sshclient.updater.AppUpdater
+import com.harataku.sshclient.updater.UpdateInfo
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,6 +34,13 @@ fun ConnectScreen(
     val context = LocalContext.current
     val versionName = context.packageManager
         .getPackageInfo(context.packageName, 0).versionName ?: ""
+    val scope = rememberCoroutineScope()
+    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+    var updating by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        updateInfo = AppUpdater.checkForUpdate(context)
+    }
 
     Scaffold(
         topBar = {
@@ -114,14 +121,46 @@ fun ConnectScreen(
             }
         }
 
-        Text(
-            text = "v$versionName",
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 16.dp)
-        )
+                .padding(bottom = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (updateInfo != null) {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            updating = true
+                            try {
+                                AppUpdater.downloadAndInstall(context, updateInfo!!)
+                            } finally {
+                                updating = false
+                            }
+                        }
+                    },
+                    enabled = !updating
+                ) {
+                    if (updating) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Downloading...")
+                    } else {
+                        Text("Update to v${updateInfo!!.version}")
+                    }
+                }
+            }
+            Text(
+                text = "v$versionName",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            )
+        }
         }
     }
 }
