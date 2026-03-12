@@ -137,13 +137,6 @@ fun ModifierKeyBar(
                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer
             )
 
-            BarButton(
-                label = "切断",
-                onClick = onDisconnect,
-                containerColor = MaterialTheme.colorScheme.errorContainer,
-                contentColor = MaterialTheme.colorScheme.onErrorContainer
-            )
-
             Spacer(Modifier.width(2.dp))
 
             shortcutGroups.forEach { group ->
@@ -162,6 +155,15 @@ fun ModifierKeyBar(
                         MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+
+            Spacer(Modifier.weight(1f))
+
+            BarButton(
+                label = "切断",
+                onClick = onDisconnect,
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer
+            )
         }
     }
 }
