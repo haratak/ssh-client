@@ -79,6 +79,7 @@ fun ModifierKeyBar(
     onShortcut: (ShortcutAction) -> Unit,
     onPaste: () -> Unit = {},
     onUpload: () -> Unit = {},
+    onDisconnect: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var expandedGroup by remember { mutableStateOf<String?>(null) }
@@ -134,6 +135,13 @@ fun ModifierKeyBar(
                 onClick = onUpload,
                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+
+            BarButton(
+                label = "切断",
+                onClick = onDisconnect,
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer
             )
 
             Spacer(Modifier.width(2.dp))

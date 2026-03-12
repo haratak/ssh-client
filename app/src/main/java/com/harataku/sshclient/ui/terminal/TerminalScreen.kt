@@ -38,6 +38,7 @@ fun TerminalScreen(
     onSessionTab: (String) -> Unit = {},
     onNewSession: () -> Unit = {},
     onReconnect: () -> Unit = {},
+    onDisconnect: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var terminalView by remember { mutableStateOf<TerminalView?>(null) }
@@ -197,6 +198,7 @@ fun TerminalScreen(
             },
             onPaste = { terminalView?.pasteFromClipboard() },
             onUpload = { filePickerLauncher.launch("*/*") },
+            onDisconnect = onDisconnect,
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color(0xFF2D2D2D))

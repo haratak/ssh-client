@@ -214,6 +214,15 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun disconnect() {
+        sshSessionManager.disconnect()
+        stopForegroundService()
+        _connectionState.value = ConnectionState.Idle
+        _tmuxSessions.value = emptyList()
+        _currentSessionName.value = null
+        _reconnecting = false
+    }
+
     fun deleteTmuxSession(sessionName: String) {
         viewModelScope.launch {
             try {

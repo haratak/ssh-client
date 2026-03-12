@@ -227,6 +227,12 @@ fun AppNavigation() {
                         connectViewModel.reconnect {
                             session.reconnect()
                         }
+                    },
+                    onDisconnect = {
+                        connectViewModel.disconnect()
+                        navController.navigate("connect") {
+                            popUpTo(0) { inclusive = true }
+                        }
                     }
                 )
             }
