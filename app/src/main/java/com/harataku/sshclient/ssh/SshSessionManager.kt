@@ -89,9 +89,10 @@ class SshSessionManager {
     suspend fun startTmuxShell(sessionName: String) = withContext(Dispatchers.IO) {
         val client = sshClient ?: throw IllegalStateException("Not connected")
         val sess = client.startSession()
+        sess.setEnvVar("LANG", "en_US.UTF-8")
         sess.allocatePTY("xterm-256color", 80, 24, 0, 0, mapOf())
         val escapedName = sessionName.replace("'", "'\\''")
-        val cmd = sess.exec("tmux attach-session -t '$escapedName'")
+        val cmd = sess.exec("tmux -u attach-session -t '$escapedName'")
         session = sess
         sessionChannel = sess as SessionChannel
         _inputStream = cmd.inputStream
@@ -104,11 +105,12 @@ class SshSessionManager {
     suspend fun startTmuxNewSession(sessionName: String? = null) = withContext(Dispatchers.IO) {
         val client = sshClient ?: throw IllegalStateException("Not connected")
         val sess = client.startSession()
+        sess.setEnvVar("LANG", "en_US.UTF-8")
         sess.allocatePTY("xterm-256color", 80, 24, 0, 0, mapOf())
         val tmuxCmd = if (sessionName != null) {
-            "tmux new-session -s '${sessionName.replace("'", "'\\''")}'"
+            "tmux -u new-session -s '${sessionName.replace("'", "'\\''")}'"
         } else {
-            "tmux new-session"
+            "tmux -u new-session"
         }
         val cmd = sess.exec(tmuxCmd)
         session = sess
