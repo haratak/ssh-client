@@ -83,39 +83,62 @@ class SshSessionManager {
 
     /**
      * Open a shell and attach to the given tmux session.
+     * Waits for shell to be ready before sending tmux command.
      */
     suspend fun startTmuxShell(sessionName: String) = withContext(Dispatchers.IO) {
         val client = sshClient ?: throw IllegalStateException("Not connected")
         val sess = client.startSession()
         sess.allocatePTY("xterm-256color", 80, 24, 0, 0, mapOf())
         val sh = sess.startShell()
-        sh.outputStream.write("tmux attach-session -t ${sessionName.replace("'", "'\\''")}\n".toByteArray())
-        sh.outputStream.flush()
         session = sess
         shell = sh
         _inputStream = sh.inputStream
         _outputStream = sh.outputStream
+        // Wait for shell to initialize, then send tmux command
+        waitForShellReady(sh)
+        val escapedName = sessionName.replace("'", "'\\''")
+        sh.outputStream.write("tmux attach-session -t '$escapedName'\n".toByteArray())
+        sh.outputStream.flush()
     }
 
     /**
      * Open a shell and create a new tmux session.
+     * Waits for shell to be ready before sending tmux command.
      */
     suspend fun startTmuxNewSession(sessionName: String? = null) = withContext(Dispatchers.IO) {
         val client = sshClient ?: throw IllegalStateException("Not connected")
         val sess = client.startSession()
         sess.allocatePTY("xterm-256color", 80, 24, 0, 0, mapOf())
         val sh = sess.startShell()
+        session = sess
+        shell = sh
+        _inputStream = sh.inputStream
+        _outputStream = sh.outputStream
+        // Wait for shell to initialize, then send tmux command
+        waitForShellReady(sh)
         val tmuxCmd = if (sessionName != null) {
-            "tmux new-session -s ${sessionName.replace("'", "'\\''")}\n"
+            "tmux new-session -s '${sessionName.replace("'", "'\\''")}'\n"
         } else {
             "tmux new-session\n"
         }
         sh.outputStream.write(tmuxCmd.toByteArray())
         sh.outputStream.flush()
-        session = sess
-        shell = sh
-        _inputStream = sh.inputStream
-        _outputStream = sh.outputStream
+    }
+
+    /**
+     * Wait for shell prompt by checking if data is available on input stream.
+     * The shell sends prompt/motd when ready.
+     */
+    private suspend fun waitForShellReady(sh: Session.Shell) {
+        val input = sh.inputStream
+        var waited = 0
+        // Wait up to 3 seconds for shell to produce output (prompt)
+        while (waited < 3000 && input.available() == 0) {
+            kotlinx.coroutines.delay(50)
+            waited += 50
+        }
+        // Small extra delay to let the prompt fully arrive
+        kotlinx.coroutines.delay(100)
     }
 
     /**
