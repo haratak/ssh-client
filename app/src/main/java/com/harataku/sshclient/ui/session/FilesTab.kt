@@ -142,8 +142,7 @@ fun FilesTab(
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     itemsIndexed(lines) { index, line ->
                         Row(
-                            modifier = Modifier
-                                .horizontalScroll(rememberScrollState())
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             // Line number
                             Text(

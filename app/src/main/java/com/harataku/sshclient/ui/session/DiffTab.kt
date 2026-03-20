@@ -2,11 +2,9 @@ package com.harataku.sshclient.ui.session
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -202,23 +200,17 @@ fun DiffTab(
                             DiffLineType.HEADER -> Color(0xFF1B2A3A) to Color(0xFF8FB8D9)
                             DiffLineType.CONTEXT -> Color.Transparent to Color(0xFFCCCCCC)
                         }
-                        Box(
+                        Text(
+                            text = line.text,
+                            color = textColor,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            lineHeight = 16.sp,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(bgColor)
-                        ) {
-                            Text(
-                                text = line.text,
-                                color = textColor,
-                                fontSize = 11.sp,
-                                fontFamily = FontFamily.Monospace,
-                                lineHeight = 16.sp,
-                                softWrap = false,
-                                modifier = Modifier
-                                    .horizontalScroll(rememberScrollState())
-                                    .padding(horizontal = 8.dp, vertical = 1.dp)
-                            )
-                        }
+                                .padding(horizontal = 8.dp, vertical = 1.dp)
+                        )
                     }
                 }
             }

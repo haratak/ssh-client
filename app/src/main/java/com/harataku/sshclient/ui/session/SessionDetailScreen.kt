@@ -13,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -108,11 +109,9 @@ fun SessionDetailScreen(
             // Agent view (always composed to keep TerminalView alive)
             if (terminalSession != null) {
                 Box(
-                    modifier = if (selectedTab == SessionTab.AGENT) {
-                        Modifier.fillMaxSize()
-                    } else {
-                        Modifier.size(1.dp).offset(x = (-100).dp)
-                    }
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(if (selectedTab != SessionTab.AGENT) Modifier.alpha(0f) else Modifier)
                 ) {
                     AndroidView(
                         factory = { ctx ->
