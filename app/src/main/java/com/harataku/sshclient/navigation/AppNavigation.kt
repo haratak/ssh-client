@@ -20,6 +20,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.harataku.sshclient.session.Session
+import com.harataku.sshclient.session.SessionState
 import com.harataku.sshclient.updater.AppUpdater
 import com.harataku.sshclient.updater.UpdateInfo
 import kotlinx.coroutines.launch
@@ -30,15 +32,17 @@ import androidx.navigation.compose.rememberNavController
 import com.harataku.sshclient.ui.connect.ConnectScreen
 import com.harataku.sshclient.ui.connect.ConnectViewModel
 import com.harataku.sshclient.ui.connect.ConnectionState
-import com.harataku.sshclient.ui.terminal.TerminalScreen
+import com.harataku.sshclient.ui.session.SessionDetailScreen
+import com.harataku.sshclient.ui.session.SessionListScreen
+import com.harataku.sshclient.ui.session.SessionListViewModel
 import com.harataku.sshclient.ui.terminal.TerminalViewModel
-import com.harataku.sshclient.ui.tmux.TmuxSessionListScreen
 import java.io.File
 
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
     val connectViewModel: ConnectViewModel = viewModel()
+    val sessionListViewModel: SessionListViewModel = viewModel()
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -117,124 +121,182 @@ fun AppNavigation() {
         )
     }
 
-    NavHost(navController = navController, startDestination = "connect") {
+    // Track the active session for session detail
+    var activeSession by remember { mutableStateOf<Session?>(null) }
+
+    NavHost(navController = navController, startDestination = "sessions_list") {
+        // Session list (new home screen)
+        composable("sessions_list") {
+            val sessions by sessionListViewModel.sessions.collectAsState()
+
+            // Reset connection state when returning to list
+            LaunchedEffect(Unit) {
+                sessionListViewModel.reload()
+            }
+
+            SessionListScreen(
+                sessions = sessions,
+                onSessionClick = { session ->
+                    activeSession = session
+                    // Load saved credentials and connect
+                    connectViewModel.updateHost(session.host)
+                    connectViewModel.updatePort(session.port.toString())
+                    connectViewModel.updateUsername(session.username)
+                    connectViewModel.updatePassword(session.password)
+                    connectViewModel.connect()
+                    navController.navigate("session_detail")
+                },
+                onNewSession = {
+                    navController.navigate("connect")
+                },
+                onDeleteSession = { id ->
+                    sessionListViewModel.deleteSession(id)
+                },
+                onTogglePin = { id ->
+                    sessionListViewModel.togglePin(id)
+                }
+            )
+        }
+
+        // Connect screen (session creation sub-flow)
         composable("connect") {
             val connectionState by connectViewModel.connectionState.collectAsState()
 
-            // Auto-navigate to session list when connected
             LaunchedEffect(connectionState) {
                 if (connectionState is ConnectionState.Connected) {
-                    navController.navigate("sessions") {
-                        popUpTo("connect") { inclusive = true }
+                    // Create session and navigate to detail
+                    val config = connectViewModel.config.value
+                    val session = Session(
+                        name = "${config.username}@${config.host}",
+                        host = config.host,
+                        port = config.port,
+                        username = config.username,
+                        password = config.password,
+                        state = SessionState.ACTIVE
+                    )
+                    sessionListViewModel.createSession(session)
+                    activeSession = session
+                    navController.navigate("session_detail") {
+                        popUpTo("sessions_list")
                     }
                 }
             }
 
             ConnectScreen(
                 onConnected = {
-                    navController.navigate("sessions") {
-                        popUpTo("connect") { inclusive = true }
-                    }
+                    // Handled by LaunchedEffect above
                 },
                 viewModel = connectViewModel
             )
         }
 
-        composable("sessions") {
-            val sessions by connectViewModel.tmuxSessions.collectAsState()
-            val isLoading by connectViewModel.sessionsLoading.collectAsState()
-            var hasLoaded by remember { mutableStateOf(false) }
-
-            // Track when a load completes
-            LaunchedEffect(isLoading) {
-                if (!isLoading) hasLoaded = true
-            }
-
-            // If done loading and no sessions exist, auto-create and go to terminal
-            LaunchedEffect(hasLoaded, sessions) {
-                if (hasLoaded && !isLoading && sessions.isEmpty()) {
-                    connectViewModel.createTmuxSession {
-                        navController.navigate("terminal") {
-                            popUpTo("sessions") { inclusive = true }
-                        }
-                    }
-                }
-            }
-
-            TmuxSessionListScreen(
-                sessions = sessions,
-                isLoading = isLoading,
-                onSessionSelected = { sessionName ->
-                    connectViewModel.attachTmuxSession(sessionName) {
-                        navController.navigate("terminal") {
-                            popUpTo("sessions") { inclusive = true }
-                        }
-                    }
-                },
-                onNewSession = {
-                    connectViewModel.createTmuxSession {
-                        navController.navigate("terminal") {
-                            popUpTo("sessions") { inclusive = true }
-                        }
-                    }
-                },
-                onDeleteSession = { sessionName ->
-                    connectViewModel.deleteTmuxSession(sessionName)
-                }
-            )
-        }
-
-        composable("terminal") {
-            val sessions by connectViewModel.tmuxSessions.collectAsState()
+        // Session detail with Agent/Diff/Files/Logs tabs
+        composable("session_detail") {
+            val session = activeSession ?: return@composable
+            val connectionState by connectViewModel.connectionState.collectAsState()
+            val tmuxSessions by connectViewModel.tmuxSessions.collectAsState()
             val currentSessionName by connectViewModel.currentSessionName.collectAsState()
             val terminalViewModel: TerminalViewModel = viewModel()
             val sshSessionManager = remember { connectViewModel.sshSessionManager }
-            terminalViewModel.init(sshSessionManager)
 
-            val connectionState by connectViewModel.connectionState.collectAsState()
+            // Wait for connection, then auto-attach tmux
+            LaunchedEffect(connectionState) {
+                if (connectionState is ConnectionState.Connected && terminalViewModel.terminalSession == null) {
+                    // Auto-attach or create tmux session
+                    val tmuxName = session.tmuxSessionName
+                    if (tmuxName != null) {
+                        connectViewModel.attachTmuxSession(tmuxName) {}
+                    } else {
+                        connectViewModel.createTmuxSession {}
+                    }
+                    terminalViewModel.init(sshSessionManager)
 
-            terminalViewModel.terminalSession?.let { session ->
-                // Wire up auto-reconnect on disconnection
-                LaunchedEffect(session) {
-                    session.onDisconnected = {
+                    // Update session state
+                    sessionListViewModel.updateSessionState(session.id, SessionState.ACTIVE)
+                }
+            }
+
+            terminalViewModel.terminalSession?.let { termSession ->
+                // Wire up auto-reconnect
+                LaunchedEffect(termSession) {
+                    termSession.onDisconnected = {
                         connectViewModel.reconnect {
-                            session.reconnect()
+                            termSession.reconnect()
                         }
                     }
                 }
 
-                TerminalScreen(
-                    terminalSession = session,
+                SessionDetailScreen(
+                    session = session,
+                    terminalSession = termSession,
                     sshSessionManager = sshSessionManager,
-                    sessions = sessions,
+                    tmuxSessions = tmuxSessions,
                     currentSessionName = currentSessionName,
                     connectionState = connectionState,
                     onSessionTab = { sessionName ->
                         if (sessionName != currentSessionName) {
-                            session.suppressDisconnect = true
+                            termSession.suppressDisconnect = true
                             connectViewModel.switchTmuxSession(sessionName) {
-                                session.switchSession()
+                                termSession.switchSession()
                             }
                         }
                     },
-                    onNewSession = {
-                        session.suppressDisconnect = true
+                    onNewTmuxSession = {
+                        termSession.suppressDisconnect = true
                         connectViewModel.createAndSwitchTmuxSession {
-                            session.switchSession()
+                            termSession.switchSession()
                         }
                     },
                     onReconnect = {
                         connectViewModel.reconnect {
-                            session.reconnect()
+                            termSession.reconnect()
                         }
                     },
                     onDisconnect = {
+                        sessionListViewModel.updateSessionState(session.id, SessionState.DISCONNECTED)
                         connectViewModel.disconnect()
-                        navController.navigate("connect") {
+                        navController.navigate("sessions_list") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    onBack = {
+                        sessionListViewModel.updateSessionState(session.id, SessionState.DISCONNECTED)
+                        connectViewModel.disconnect()
+                        navController.navigate("sessions_list") {
                             popUpTo(0) { inclusive = true }
                         }
                     }
                 )
+            } ?: run {
+                // Show loading while connecting
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = androidx.compose.ui.Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        CircularProgressIndicator()
+                        Text(
+                            when (connectionState) {
+                                is ConnectionState.Connecting -> "Connecting..."
+                                is ConnectionState.Connected -> "Attaching session..."
+                                is ConnectionState.Error -> (connectionState as ConnectionState.Error).message
+                                else -> "Connecting..."
+                            }
+                        )
+                        if (connectionState is ConnectionState.Error) {
+                            TextButton(onClick = {
+                                navController.navigate("sessions_list") {
+                                    popUpTo(0) { inclusive = true }
+                                }
+                            }) {
+                                Text("Back to Sessions")
+                            }
+                        }
+                    }
+                }
             }
         }
     }
