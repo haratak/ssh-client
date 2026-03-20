@@ -198,25 +198,26 @@ fun AppNavigation() {
             val currentSessionName by connectViewModel.currentSessionName.collectAsState()
             val terminalViewModel: TerminalViewModel = viewModel()
             val sshSessionManager = remember { connectViewModel.sshSessionManager }
+            val termSession by terminalViewModel.terminalSessionFlow.collectAsState()
 
-            // Wait for connection, then auto-attach tmux
+            // Wait for connection, then auto-attach tmux, then init terminal
             LaunchedEffect(connectionState) {
                 if (connectionState is ConnectionState.Connected && terminalViewModel.terminalSession == null) {
-                    // Auto-attach or create tmux session
                     val tmuxName = session.tmuxSessionName
                     if (tmuxName != null) {
-                        connectViewModel.attachTmuxSession(tmuxName) {}
+                        connectViewModel.attachTmuxSession(tmuxName) {
+                            terminalViewModel.init(sshSessionManager)
+                        }
                     } else {
-                        connectViewModel.createTmuxSession {}
+                        connectViewModel.createTmuxSession {
+                            terminalViewModel.init(sshSessionManager)
+                        }
                     }
-                    terminalViewModel.init(sshSessionManager)
-
-                    // Update session state
                     sessionListViewModel.updateSessionState(session.id, SessionState.ACTIVE)
                 }
             }
 
-            terminalViewModel.terminalSession?.let { termSession ->
+            termSession?.let { termSession ->
                 // Wire up auto-reconnect
                 LaunchedEffect(termSession) {
                     termSession.onDisconnected = {
