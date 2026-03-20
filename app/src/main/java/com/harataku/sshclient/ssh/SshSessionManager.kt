@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.connection.channel.direct.Session
+import net.schmizz.sshj.connection.channel.direct.SessionChannel
 import net.schmizz.sshj.transport.verification.PromiscuousVerifier
 import net.schmizz.sshj.sftp.SFTPClient
 import java.io.InputStream
@@ -15,7 +16,7 @@ class SshSessionManager {
 
     private var sshClient: SSHClient? = null
     private var session: Session? = null
-    private var shell: Session.Shell? = null
+    private var sessionChannel: SessionChannel? = null
     private var _inputStream: InputStream? = null
     private var _outputStream: OutputStream? = null
 
@@ -82,61 +83,38 @@ class SshSessionManager {
     }
 
     /**
-     * Open a shell and attach to the given tmux session.
-     * Waits for shell to be ready before sending tmux command.
+     * Attach to the given tmux session via exec channel with PTY.
+     * No shell involved - tmux runs directly, no .bashrc, no $TMUX issues.
      */
-    /**
-     * Pending tmux command to send after TerminalSession starts reading.
-     * This ensures the shell is fully initialized before the command runs.
-     */
-    var pendingTmuxCommand: String? = null
-        private set
-
-    fun clearPendingCommand() {
-        pendingTmuxCommand = null
-    }
-
     suspend fun startTmuxShell(sessionName: String) = withContext(Dispatchers.IO) {
         val client = sshClient ?: throw IllegalStateException("Not connected")
         val sess = client.startSession()
         sess.allocatePTY("xterm-256color", 80, 24, 0, 0, mapOf())
-        val sh = sess.startShell()
         val escapedName = sessionName.replace("'", "'\\''")
-        pendingTmuxCommand = "tmux attach-session -t '$escapedName'\n"
+        val cmd = sess.exec("tmux attach-session -t '$escapedName'")
         session = sess
-        shell = sh
-        _inputStream = sh.inputStream
-        _outputStream = sh.outputStream
+        sessionChannel = sess as SessionChannel
+        _inputStream = cmd.inputStream
+        _outputStream = cmd.outputStream
     }
 
     /**
-     * Open a shell and create a new tmux session.
+     * Create a new tmux session via exec channel with PTY.
      */
     suspend fun startTmuxNewSession(sessionName: String? = null) = withContext(Dispatchers.IO) {
         val client = sshClient ?: throw IllegalStateException("Not connected")
         val sess = client.startSession()
         sess.allocatePTY("xterm-256color", 80, 24, 0, 0, mapOf())
-        val sh = sess.startShell()
-        pendingTmuxCommand = if (sessionName != null) {
-            "tmux new-session -s '${sessionName.replace("'", "'\\''")}'\n"
+        val tmuxCmd = if (sessionName != null) {
+            "tmux new-session -s '${sessionName.replace("'", "'\\''")}'"
         } else {
-            "tmux new-session\n"
+            "tmux new-session"
         }
+        val cmd = sess.exec(tmuxCmd)
         session = sess
-        shell = sh
-        _inputStream = sh.inputStream
-        _outputStream = sh.outputStream
-    }
-
-    /**
-     * Send pending tmux command. Called by TerminalSession after shell prompt appears.
-     */
-    suspend fun sendPendingCommand() = withContext(Dispatchers.IO) {
-        val cmd = pendingTmuxCommand ?: return@withContext
-        val out = _outputStream ?: return@withContext
-        out.write(cmd.toByteArray())
-        out.flush()
-        pendingTmuxCommand = null
+        sessionChannel = sess as SessionChannel
+        _inputStream = cmd.inputStream
+        _outputStream = cmd.outputStream
     }
 
     /**
@@ -148,7 +126,7 @@ class SshSessionManager {
         sess.allocatePTY("xterm-256color", 80, 24, 0, 0, mapOf())
         val sh = sess.startShell()
         session = sess
-        shell = sh
+        sessionChannel = sess as SessionChannel
         _inputStream = sh.inputStream
         _outputStream = sh.outputStream
     }
@@ -158,13 +136,12 @@ class SshSessionManager {
     fun getOutputStream(): OutputStream = _outputStream!!
 
     fun resizePty(cols: Int, rows: Int) {
-        try { shell?.changeWindowDimensions(cols, rows, 0, 0) } catch (_: Exception) {}
+        try { sessionChannel?.changeWindowDimensions(cols, rows, 0, 0) } catch (_: Exception) {}
     }
 
     suspend fun closeShell() = withContext(Dispatchers.IO) {
-        try { shell?.close() } catch (_: Exception) {}
         try { session?.close() } catch (_: Exception) {}
-        shell = null
+        sessionChannel = null
         session = null
         _inputStream = null
         _outputStream = null
@@ -213,10 +190,9 @@ class SshSessionManager {
     fun isConnected(): Boolean = sshClient?.isConnected == true
 
     fun disconnect() {
-        try { shell?.close() } catch (_: Exception) {}
         try { session?.close() } catch (_: Exception) {}
         try { sshClient?.disconnect() } catch (_: Exception) {}
-        shell = null
+        sessionChannel = null
         _inputStream = null
         _outputStream = null
         session = null
