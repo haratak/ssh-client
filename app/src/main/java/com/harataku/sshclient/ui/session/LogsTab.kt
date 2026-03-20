@@ -125,8 +125,8 @@ fun LogsTab(
                         fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace,
                         lineHeight = 16.sp,
+                        softWrap = false,
                         modifier = Modifier
-                            .fillMaxWidth()
                             .horizontalScroll(rememberScrollState())
                             .padding(horizontal = 8.dp, vertical = 1.dp)
                     )

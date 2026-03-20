@@ -202,18 +202,23 @@ fun DiffTab(
                             DiffLineType.HEADER -> Color(0xFF1B2A3A) to Color(0xFF8FB8D9)
                             DiffLineType.CONTEXT -> Color.Transparent to Color(0xFFCCCCCC)
                         }
-                        Text(
-                            text = line.text,
-                            color = textColor,
-                            fontSize = 11.sp,
-                            fontFamily = FontFamily.Monospace,
-                            lineHeight = 16.sp,
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(bgColor)
-                                .horizontalScroll(rememberScrollState())
-                                .padding(horizontal = 8.dp, vertical = 1.dp)
-                        )
+                        ) {
+                            Text(
+                                text = line.text,
+                                color = textColor,
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace,
+                                lineHeight = 16.sp,
+                                softWrap = false,
+                                modifier = Modifier
+                                    .horizontalScroll(rememberScrollState())
+                                    .padding(horizontal = 8.dp, vertical = 1.dp)
+                            )
+                        }
                     }
                 }
             }

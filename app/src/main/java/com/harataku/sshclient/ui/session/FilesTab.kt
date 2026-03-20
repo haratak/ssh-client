@@ -143,7 +143,6 @@ fun FilesTab(
                     itemsIndexed(lines) { index, line ->
                         Row(
                             modifier = Modifier
-                                .fillMaxWidth()
                                 .horizontalScroll(rememberScrollState())
                         ) {
                             // Line number
