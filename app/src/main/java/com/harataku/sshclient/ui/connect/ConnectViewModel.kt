@@ -89,9 +89,11 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
      */
     fun reconnect(onReconnected: (() -> Unit)? = null) {
         if (_reconnecting) return
+        val sessionName = _currentSessionName.value
+        // Don't reconnect if we intentionally detached (switchToSessions clears this)
+        if (sessionName == null) return
         _reconnecting = true
         val config = sshSessionManager.connectionConfig ?: _config.value
-        val sessionName = _currentSessionName.value
 
         _connectionState.value = ConnectionState.Reconnecting
 
@@ -148,6 +150,8 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
 
     fun switchToSessions(onReady: () -> Unit) {
         _sessionsLoading.value = true
+        _currentSessionName.value = null
+        _reconnecting = false
         viewModelScope.launch {
             try {
                 sshSessionManager.closeShell()

@@ -56,16 +56,30 @@ object AppUpdater {
         }
     }
 
-    suspend fun downloadAndInstall(context: Context, updateInfo: UpdateInfo) = withContext(Dispatchers.IO) {
+    suspend fun downloadAndInstall(
+        context: Context,
+        updateInfo: UpdateInfo,
+        onProgress: ((Int) -> Unit)? = null
+    ) = withContext(Dispatchers.IO) {
         val url = URL(updateInfo.downloadUrl)
         val conn = url.openConnection() as HttpURLConnection
         conn.connectTimeout = 30000
         conn.readTimeout = 60000
 
+        val totalSize = conn.contentLength
         val apkFile = File(context.cacheDir, "update.apk")
         conn.inputStream.use { input ->
             apkFile.outputStream().use { output ->
-                input.copyTo(output)
+                val buffer = ByteArray(8192)
+                var downloaded = 0L
+                var bytesRead: Int
+                while (input.read(buffer).also { bytesRead = it } != -1) {
+                    output.write(buffer, 0, bytesRead)
+                    downloaded += bytesRead
+                    if (totalSize > 0) {
+                        onProgress?.invoke((downloaded * 100 / totalSize).toInt())
+                    }
+                }
             }
         }
         conn.disconnect()

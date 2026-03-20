@@ -47,6 +47,7 @@ fun AppNavigation() {
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var updating by remember { mutableStateOf(false) }
     var updateError by remember { mutableStateOf<String?>(null) }
+    var downloadProgress by remember { mutableStateOf(0) }
     LaunchedEffect(Unit) {
         updateInfo = AppUpdater.checkForUpdate(context)
     }
@@ -57,6 +58,10 @@ fun AppNavigation() {
             text = {
                 Column {
                     Text("v${updateInfo!!.version} is available. Update now?")
+                    if (updating) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Downloading... ${downloadProgress}%", fontSize = 13.sp)
+                    }
                     if (updateError != null) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
@@ -73,8 +78,11 @@ fun AppNavigation() {
                         scope.launch {
                             updating = true
                             updateError = null
+                            downloadProgress = 0
                             try {
-                                AppUpdater.downloadAndInstall(context, updateInfo!!)
+                                AppUpdater.downloadAndInstall(context, updateInfo!!) { progress ->
+                                    downloadProgress = progress
+                                }
                             } catch (e: Exception) {
                                 updateError = e.message ?: "Download failed"
                             } finally {
@@ -84,15 +92,7 @@ fun AppNavigation() {
                     },
                     enabled = !updating
                 ) {
-                    if (updating) {
-                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Downloading...")
-                        }
-                    } else {
-                        Text("Update")
-                    }
+                    Text(if (updating) "${downloadProgress}%" else "Update")
                 }
             },
             dismissButton = {
