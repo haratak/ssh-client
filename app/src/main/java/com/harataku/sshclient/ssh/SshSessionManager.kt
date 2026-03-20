@@ -85,17 +85,24 @@ class SshSessionManager {
      * Open a shell and attach to the given tmux session.
      * Waits for shell to be ready before sending tmux command.
      */
+    /**
+     * Pending tmux command to send after TerminalSession starts reading.
+     * This ensures the shell is fully initialized before the command runs.
+     */
+    var pendingTmuxCommand: String? = null
+        private set
+
+    fun clearPendingCommand() {
+        pendingTmuxCommand = null
+    }
+
     suspend fun startTmuxShell(sessionName: String) = withContext(Dispatchers.IO) {
         val client = sshClient ?: throw IllegalStateException("Not connected")
         val sess = client.startSession()
         sess.allocatePTY("xterm-256color", 80, 24, 0, 0, mapOf())
         val sh = sess.startShell()
-        // Wait for shell to initialize before sending tmux command
-        waitForShellReady(sh)
         val escapedName = sessionName.replace("'", "'\\''")
-        sh.outputStream.write("tmux attach-session -t '$escapedName'\n".toByteArray())
-        sh.outputStream.flush()
-        // Only expose streams after tmux command is sent
+        pendingTmuxCommand = "tmux attach-session -t '$escapedName'\n"
         session = sess
         shell = sh
         _inputStream = sh.inputStream
@@ -104,23 +111,17 @@ class SshSessionManager {
 
     /**
      * Open a shell and create a new tmux session.
-     * Waits for shell to be ready before sending tmux command.
      */
     suspend fun startTmuxNewSession(sessionName: String? = null) = withContext(Dispatchers.IO) {
         val client = sshClient ?: throw IllegalStateException("Not connected")
         val sess = client.startSession()
         sess.allocatePTY("xterm-256color", 80, 24, 0, 0, mapOf())
         val sh = sess.startShell()
-        // Wait for shell to initialize before sending tmux command
-        waitForShellReady(sh)
-        val tmuxCmd = if (sessionName != null) {
+        pendingTmuxCommand = if (sessionName != null) {
             "tmux new-session -s '${sessionName.replace("'", "'\\''")}'\n"
         } else {
             "tmux new-session\n"
         }
-        sh.outputStream.write(tmuxCmd.toByteArray())
-        sh.outputStream.flush()
-        // Only expose streams after tmux command is sent
         session = sess
         shell = sh
         _inputStream = sh.inputStream
@@ -128,28 +129,14 @@ class SshSessionManager {
     }
 
     /**
-     * Wait for shell to be ready by draining initial output (motd, prompt).
-     * Reads all available data until the stream is quiet for a short period.
+     * Send pending tmux command. Called by TerminalSession after shell prompt appears.
      */
-    private suspend fun waitForShellReady(sh: Session.Shell) {
-        val input = sh.inputStream
-        val buffer = ByteArray(4096)
-        val startTime = System.currentTimeMillis()
-        val timeout = 10000L // 10 seconds max
-        var lastDataTime = 0L
-
-        while (System.currentTimeMillis() - startTime < timeout) {
-            if (input.available() > 0) {
-                // Drain available data (motd, prompt, etc.)
-                input.read(buffer, 0, input.available().coerceAtMost(buffer.size))
-                lastDataTime = System.currentTimeMillis()
-            } else if (lastDataTime > 0 && System.currentTimeMillis() - lastDataTime > 300) {
-                // Stream was active but has been quiet for 300ms - shell is ready
-                break
-            } else {
-                kotlinx.coroutines.delay(50)
-            }
-        }
+    suspend fun sendPendingCommand() = withContext(Dispatchers.IO) {
+        val cmd = pendingTmuxCommand ?: return@withContext
+        val out = _outputStream ?: return@withContext
+        out.write(cmd.toByteArray())
+        out.flush()
+        pendingTmuxCommand = null
     }
 
     /**

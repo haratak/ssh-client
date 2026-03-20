@@ -96,6 +96,7 @@ class TerminalSession(
         val inputStream = sshSessionManager.getInputStream()
         scope.launch(Dispatchers.IO) {
             val buffer = ByteArray(4096)
+            var pendingCommandSent = false
             try {
                 while (true) {
                     val bytesRead = inputStream.read(buffer)
@@ -104,6 +105,11 @@ class TerminalSession(
                         emulator.append(buffer, bytesRead)
                     }
                     onRedraw?.invoke()
+                    // After first data arrives (shell prompt), send pending tmux command
+                    if (!pendingCommandSent && sshSessionManager.pendingTmuxCommand != null) {
+                        pendingCommandSent = true
+                        sshSessionManager.sendPendingCommand()
+                    }
                 }
             } catch (e: Exception) {
                 Log.e("TerminalSession", "Read failed", e)
