@@ -18,11 +18,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.harataku.sshclient.session.Session
-import com.harataku.sshclient.session.SessionState
 import com.harataku.sshclient.ssh.SshSessionManager
 import com.harataku.sshclient.terminal.TerminalSession
-import com.harataku.sshclient.tmux.TmuxSessionInfo
 import com.harataku.sshclient.ui.connect.ConnectionState
 import com.harataku.sshclient.ui.terminal.ModifierKeyBar
 import com.harataku.sshclient.ui.terminal.ShortcutAction
@@ -38,14 +35,11 @@ enum class SessionTab(val label: String) {
 
 @Composable
 fun SessionDetailScreen(
-    session: Session,
+    sessionName: String,
+    host: String,
     terminalSession: TerminalSession?,
     sshSessionManager: SshSessionManager,
-    tmuxSessions: List<TmuxSessionInfo>,
-    currentSessionName: String?,
     connectionState: ConnectionState,
-    onSessionTab: (String) -> Unit,
-    onNewTmuxSession: () -> Unit,
     onReconnect: () -> Unit,
     onDisconnect: () -> Unit,
     onBack: () -> Unit,
@@ -99,20 +93,11 @@ fun SessionDetailScreen(
     ) {
         // Session header
         SessionHeader(
-            session = session,
+            sessionName = sessionName,
+            host = host,
             connectionState = connectionState,
             onBack = onBack
         )
-
-        // Tmux session tab bar
-        if (tmuxSessions.isNotEmpty() && selectedTab == SessionTab.AGENT) {
-            TmuxTabBar(
-                sessions = tmuxSessions,
-                currentSessionName = currentSessionName,
-                onSessionTab = onSessionTab,
-                onNewSession = onNewTmuxSession
-            )
-        }
 
         // Main content area
         Box(
@@ -218,7 +203,8 @@ fun SessionDetailScreen(
 
 @Composable
 private fun SessionHeader(
-    session: Session,
+    sessionName: String,
+    host: String,
     connectionState: ConnectionState,
     onBack: () -> Unit
 ) {
@@ -239,12 +225,12 @@ private fun SessionHeader(
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = session.name,
+                text = sessionName,
                 color = Color.White,
                 fontSize = 14.sp
             )
             Text(
-                text = "${session.username}@${session.host}",
+                text = host,
                 color = Color(0xFF888888),
                 fontSize = 11.sp
             )
@@ -286,7 +272,7 @@ private fun ConnectionOverlay(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                androidx.compose.material3.CircularProgressIndicator(
+                CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
                     color = Color.White,
                     strokeWidth = 2.dp
@@ -308,51 +294,12 @@ private fun ConnectionOverlay(
                     color = Color(0xFFAAAAAA),
                     fontSize = 12.sp
                 )
-                androidx.compose.material3.TextButton(onClick = onReconnect) {
+                TextButton(onClick = onReconnect) {
                     Text("Reconnect", color = Color(0xFF64B5F6), fontSize = 14.sp)
                 }
             }
         }
         else -> {}
-    }
-}
-
-@Composable
-private fun TmuxTabBar(
-    sessions: List<TmuxSessionInfo>,
-    currentSessionName: String?,
-    onSessionTab: (String) -> Unit,
-    onNewSession: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFF2D2D2D))
-            .padding(horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        sessions.forEach { s ->
-            val isActive = s.name == currentSessionName
-            TextButton(
-                onClick = { onSessionTab(s.name) },
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                modifier = Modifier.height(32.dp)
-            ) {
-                Text(
-                    text = s.name,
-                    fontSize = 12.sp,
-                    color = if (isActive) MaterialTheme.colorScheme.primary
-                    else Color(0xFFAAAAAA)
-                )
-            }
-        }
-        TextButton(
-            onClick = onNewSession,
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-            modifier = Modifier.height(32.dp)
-        ) {
-            Text("+", fontSize = 14.sp, color = Color(0xFFAAAAAA))
-        }
     }
 }
 

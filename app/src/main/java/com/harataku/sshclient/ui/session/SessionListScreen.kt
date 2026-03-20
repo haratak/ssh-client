@@ -1,48 +1,46 @@
 package com.harataku.sshclient.ui.session
 
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.harataku.sshclient.session.Session
-import com.harataku.sshclient.session.SessionState
+import com.harataku.sshclient.tmux.TmuxSessionInfo
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SessionListScreen(
-    sessions: List<Session>,
-    onSessionClick: (Session) -> Unit,
+    tmuxSessions: List<TmuxSessionInfo>,
+    isLoading: Boolean,
+    onSessionClick: (String) -> Unit,
     onNewSession: () -> Unit,
     onDeleteSession: (String) -> Unit,
-    onTogglePin: (String) -> Unit,
+    onDisconnect: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val versionName = context.packageManager
         .getPackageInfo(context.packageName, 0).versionName ?: ""
 
-    var sessionToDelete by remember { mutableStateOf<Session?>(null) }
+    var sessionToDelete by remember { mutableStateOf<String?>(null) }
 
     if (sessionToDelete != null) {
         AlertDialog(
             onDismissRequest = { sessionToDelete = null },
             title = { Text("Delete Session") },
-            text = { Text("Delete session \"${sessionToDelete!!.name}\"?") },
+            text = { Text("Kill tmux session \"$sessionToDelete\"?") },
             confirmButton = {
                 TextButton(onClick = {
-                    onDeleteSession(sessionToDelete!!.id)
+                    onDeleteSession(sessionToDelete!!)
                     sessionToDelete = null
                 }) {
                     Text("Delete", color = MaterialTheme.colorScheme.error)
@@ -58,7 +56,14 @@ fun SessionListScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Sessions") })
+            TopAppBar(
+                title = { Text("Sessions") },
+                actions = {
+                    TextButton(onClick = onDisconnect) {
+                        Text("Logout", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = onNewSession) {
@@ -71,87 +76,39 @@ fun SessionListScreen(
                 .padding(padding)
                 .fillMaxSize()
         ) {
-            if (sessions.isEmpty()) {
-                Column(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        "No sessions yet",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+            when {
+                isLoading -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.align(Alignment.Center)
                     )
-                    Button(onClick = onNewSession) {
-                        Text("Add Connection")
+                }
+                tmuxSessions.isEmpty() -> {
+                    Column(
+                        modifier = Modifier.align(Alignment.Center),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            "No sessions",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Button(onClick = onNewSession) {
+                            Text("New Session")
+                        }
                     }
                 }
-            } else {
-                val pinned = sessions.filter { it.pinned }
-                val active = sessions.filter { !it.pinned && it.state == SessionState.ACTIVE }
-                val recent = sessions.filter { !it.pinned && it.state != SessionState.ACTIVE }
-
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    if (pinned.isNotEmpty()) {
-                        item {
-                            Text(
-                                "Pinned",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
-                        }
-                        items(pinned, key = { it.id }) { session ->
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(tmuxSessions, key = { it.id }) { session ->
                             SessionCard(
                                 session = session,
-                                onClick = { onSessionClick(session) },
-                                onLongClick = { sessionToDelete = session },
-                                onTogglePin = { onTogglePin(session.id) }
-                            )
-                        }
-                    }
-
-                    if (active.isNotEmpty()) {
-                        item {
-                            Text(
-                                "Active",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = if (pinned.isNotEmpty()) 12.dp else 0.dp, bottom = 4.dp)
-                            )
-                        }
-                        items(active, key = { it.id }) { session ->
-                            SessionCard(
-                                session = session,
-                                onClick = { onSessionClick(session) },
-                                onLongClick = { sessionToDelete = session },
-                                onTogglePin = { onTogglePin(session.id) }
-                            )
-                        }
-                    }
-
-                    if (recent.isNotEmpty()) {
-                        item {
-                            Text(
-                                "Recent",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(
-                                    top = if (pinned.isNotEmpty() || active.isNotEmpty()) 12.dp else 0.dp,
-                                    bottom = 4.dp
-                                )
-                            )
-                        }
-                        items(recent, key = { it.id }) { session ->
-                            SessionCard(
-                                session = session,
-                                onClick = { onSessionClick(session) },
-                                onLongClick = { sessionToDelete = session },
-                                onTogglePin = { onTogglePin(session.id) }
+                                onClick = { onSessionClick(session.name) },
+                                onDelete = { sessionToDelete = session.name }
                             )
                         }
                     }
@@ -170,25 +127,20 @@ fun SessionListScreen(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SessionCard(
-    session: Session,
+    session: TmuxSessionInfo,
     onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    onTogglePin: () -> Unit
+    onDelete: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            )
+            .clickable(onClick = onClick)
     ) {
         Row(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 8.dp)
                 .fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
@@ -196,60 +148,27 @@ private fun SessionCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = session.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    style = MaterialTheme.typography.titleMedium
                 )
                 Text(
-                    text = "${session.username}@${session.host}:${session.port}",
+                    text = "${session.windows} window${if (session.windows != 1) "s" else ""}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                if (session.tmuxSessionName != null) {
-                    Text(
-                        text = "tmux: ${session.tmuxSessionName}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                SessionStateBadge(session.state)
-                if (session.pinned) {
-                    Icon(
-                        Icons.Default.Star,
-                        contentDescription = "Pinned",
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
+            if (session.attached) {
+                AssistChip(
+                    onClick = {},
+                    label = { Text("attached") }
+                )
+            }
+            IconButton(onClick = onDelete) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "Delete session",
+                    tint = MaterialTheme.colorScheme.error
+                )
             }
         }
     }
-}
-
-@Composable
-private fun SessionStateBadge(state: SessionState) {
-    val (label, color) = when (state) {
-        SessionState.ACTIVE -> "Active" to MaterialTheme.colorScheme.primary
-        SessionState.IDLE -> "Idle" to MaterialTheme.colorScheme.onSurfaceVariant
-        SessionState.RUNNING -> "Running" to MaterialTheme.colorScheme.tertiary
-        SessionState.NEEDS_REVIEW -> "Review" to MaterialTheme.colorScheme.error
-        SessionState.DISCONNECTED -> "Disconnected" to MaterialTheme.colorScheme.outline
-        SessionState.ERROR -> "Error" to MaterialTheme.colorScheme.error
-    }
-    AssistChip(
-        onClick = {},
-        label = {
-            Text(label, fontSize = 11.sp)
-        },
-        colors = AssistChipDefaults.assistChipColors(
-            labelColor = color
-        ),
-        modifier = Modifier.height(28.dp)
-    )
 }

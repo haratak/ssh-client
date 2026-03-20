@@ -42,6 +42,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         val saved = connectionStore.load()
         if (saved != null) {
             _config.value = saved
+            autoConnect(saved)
         }
     }
 
