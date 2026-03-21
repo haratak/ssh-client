@@ -5,9 +5,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,8 +30,7 @@ fun SessionListScreen(
     onNewSession: (String?) -> Unit,
     onDeleteSession: (String) -> Unit,
     onDisconnect: () -> Unit,
-    directories: List<String> = emptyList(),
-    onLoadDirectories: () -> Unit = {},
+    onListDir: (String, (List<String>) -> Unit) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -61,47 +62,13 @@ fun SessionListScreen(
     }
 
     if (showDirPicker) {
-        AlertDialog(
-            onDismissRequest = { showDirPicker = false },
-            title = { Text("New Session") },
-            text = {
-                Column {
-                    Text("Select working directory:", fontSize = 13.sp)
-                    Spacer(Modifier.height(8.dp))
-                    // Home (default)
-                    TextButton(onClick = {
-                        showDirPicker = false
-                        onNewSession(null)
-                    }) {
-                        Text("~ (home)", modifier = Modifier.fillMaxWidth())
-                    }
-                    // Directory list
-                    if (directories.isEmpty()) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp).padding(8.dp),
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
-                            items(directories) { dir ->
-                                TextButton(onClick = {
-                                    showDirPicker = false
-                                    onNewSession(dir)
-                                }) {
-                                    Text(
-                                        dir.substringAfterLast("/"),
-                                        modifier = Modifier.fillMaxWidth(),
-                                        fontSize = 14.sp
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
+        DirectoryPickerDialog(
+            onSelect = { dir ->
+                showDirPicker = false
+                onNewSession(dir)
             },
-            confirmButton = {
-                TextButton(onClick = { showDirPicker = false }) { Text("Cancel") }
-            }
+            onDismiss = { showDirPicker = false },
+            onListDir = onListDir
         )
     }
 
@@ -117,10 +84,7 @@ fun SessionListScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = {
-                showDirPicker = true
-                onLoadDirectories()
-            }) {
+            FloatingActionButton(onClick = { showDirPicker = true }) {
                 Icon(Icons.Default.Add, contentDescription = "New Session")
             }
         }
@@ -285,4 +249,116 @@ private fun SessionCard(
             }
         }
     }
+}
+
+@Composable
+private fun DirectoryPickerDialog(
+    onSelect: (String?) -> Unit,
+    onDismiss: () -> Unit,
+    onListDir: (String, (List<String>) -> Unit) -> Unit
+) {
+    var currentPath by remember { mutableStateOf<String?>(null) } // null = home
+    var dirs by remember { mutableStateOf<List<String>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    val scope = rememberCoroutineScope()
+
+    fun loadDir(path: String) {
+        loading = true
+        currentPath = path
+        onListDir(path) { result ->
+            dirs = result
+            loading = false
+        }
+    }
+
+    // Load home directory on first open
+    LaunchedEffect(Unit) {
+        onListDir("~") { result ->
+            dirs = result
+            loading = false
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column {
+                Text("New Session")
+                if (currentPath != null) {
+                    Text(
+                        currentPath!!,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        },
+        text = {
+            Column {
+                // Navigation bar
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (currentPath != null && currentPath != "~") {
+                        IconButton(
+                            onClick = {
+                                val parent = currentPath!!.substringBeforeLast("/").ifEmpty { "/" }
+                                loadDir(parent)
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Up",
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.weight(1f))
+                    // Select current directory button
+                    TextButton(onClick = { onSelect(currentPath) }) {
+                        Text("Select here")
+                    }
+                }
+
+                Divider()
+
+                if (loading) {
+                    Box(Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                    }
+                } else if (dirs.isEmpty()) {
+                    Box(Modifier.fillMaxWidth().height(60.dp), contentAlignment = Alignment.Center) {
+                        Text("No subdirectories", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                        items(dirs) { dir ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { loadDir(dir) }
+                                    .padding(vertical = 8.dp, horizontal = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    dir.substringAfterLast("/"),
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TextButton(onClick = { onSelect(dir) }) {
+                                    Text("Select", fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }

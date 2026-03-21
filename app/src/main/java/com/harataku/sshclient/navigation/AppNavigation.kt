@@ -165,13 +165,23 @@ fun AppNavigation() {
         composable("sessions_list") {
             val tmuxSessions by connectViewModel.tmuxSessions.collectAsState()
             val isLoading by connectViewModel.sessionsLoading.collectAsState()
-            val directories by connectViewModel.directories.collectAsState()
 
             SessionListScreen(
                 tmuxSessions = tmuxSessions,
                 isLoading = isLoading,
-                directories = directories,
-                onLoadDirectories = { connectViewModel.loadDirectories() },
+                onListDir = { path, callback ->
+                    scope.launch {
+                        try {
+                            val expandedPath = if (path == "~") "~" else path
+                            val output = connectViewModel.sshSessionManager.exec(
+                                "ls -1d ${expandedPath.replace("'", "'\\''")}/*/ 2>/dev/null | sed 's|/\$||'"
+                            )
+                            callback(output.lines().filter { it.isNotBlank() })
+                        } catch (_: Exception) {
+                            callback(emptyList())
+                        }
+                    }
+                },
                 onSessionClick = { sessionName ->
                     activeTmuxSession = sessionName
                     val info = tmuxSessions.find { it.name == sessionName }
