@@ -159,14 +159,6 @@ fun SessionDetailScreen(
                 )
                 SessionTab.FILES -> FilesTab(
                     sshSessionManager = sshSessionManager,
-                    onOpenInTerminal = { path ->
-                        val escaped = path.replace("'", "'\\''")
-                        selectedTab = SessionTab.AGENT
-                        scope.launch {
-                            kotlinx.coroutines.delay(300)
-                            terminalSession?.writeInput("nvim -R '$escaped'\r")
-                        }
-                    },
                     modifier = Modifier.fillMaxSize()
                 )
                 SessionTab.LOGS -> LogsTab(
