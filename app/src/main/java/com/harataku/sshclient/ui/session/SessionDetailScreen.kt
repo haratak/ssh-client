@@ -161,7 +161,8 @@ fun SessionDetailScreen(
                     sshSessionManager = sshSessionManager,
                     onOpenInTerminal = { path ->
                         val escaped = path.replace("'", "'\\''")
-                        terminalSession?.writeInput("nvim -R '$escaped'\r")
+                        terminalSession?.writeInput("nvim -R '$escaped'")
+                        terminalSession?.writeByte(0x0D) // CR = Enter
                         selectedTab = SessionTab.AGENT
                     },
                     modifier = Modifier.fillMaxSize()
