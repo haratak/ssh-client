@@ -159,6 +159,11 @@ fun SessionDetailScreen(
                 )
                 SessionTab.FILES -> FilesTab(
                     sshSessionManager = sshSessionManager,
+                    onOpenInTerminal = { path ->
+                        val escaped = path.replace("'", "'\\''")
+                        terminalSession?.writeInput("nvim -R '$escaped'\n")
+                        selectedTab = SessionTab.AGENT
+                    },
                     modifier = Modifier.fillMaxSize()
                 )
                 SessionTab.LOGS -> LogsTab(

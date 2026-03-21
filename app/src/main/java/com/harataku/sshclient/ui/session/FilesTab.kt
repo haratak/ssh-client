@@ -34,6 +34,7 @@ data class FileEntry(
 @Composable
 fun FilesTab(
     sshSessionManager: SshSessionManager,
+    onOpenInTerminal: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var currentPath by remember { mutableStateOf<String?>(null) }
@@ -120,6 +121,15 @@ fun FilesTab(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
+                if (onOpenInTerminal != null) {
+                    TextButton(
+                        onClick = { onOpenInTerminal(viewingFile!!) },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text("nvim", fontSize = 12.sp)
+                    }
+                }
             }
             // File path
             Text(
