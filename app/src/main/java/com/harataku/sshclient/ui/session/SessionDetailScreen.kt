@@ -161,11 +161,7 @@ fun SessionDetailScreen(
                     sshSessionManager = sshSessionManager,
                     onOpenInTerminal = { path ->
                         val escaped = path.replace("'", "'\\''")
-                        scope.launch {
-                            try {
-                                sshSessionManager.exec("tmux send-keys -t '$sessionName' \"nvim -R '$escaped'\" Enter")
-                            } catch (_: Exception) {}
-                        }
+                        terminalSession?.writeInput("nvim -R '$escaped'\r")
                         selectedTab = SessionTab.AGENT
                     },
                     modifier = Modifier.fillMaxSize()
