@@ -11,7 +11,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.harataku.sshclient.tmux.TmuxSessionInfo
@@ -140,34 +143,94 @@ private fun SessionCard(
     ) {
         Row(
             modifier = Modifier
-                .padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 8.dp)
+                .padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 8.dp)
                 .fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
+                // Session name
                 Text(
                     text = session.name,
                     style = MaterialTheme.typography.titleMedium
                 )
-                Text(
-                    text = "${session.windows} window${if (session.windows != 1) "s" else ""}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                // cwd (shortened to last 2 segments)
+                if (session.cwd.isNotEmpty()) {
+                    val shortCwd = session.cwd.split("/").takeLast(2).joinToString("/")
+                    Text(
+                        text = shortCwd,
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                // Branch + command info
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (session.gitBranch.isNotEmpty()) {
+                        Text(
+                            text = session.gitBranch,
+                            fontSize = 11.sp,
+                            color = Color(0xFF4CAF50),
+                            maxLines = 1
+                        )
+                    }
+                    if (session.currentCommand.isNotEmpty() && session.currentCommand != "bash" && session.currentCommand != "zsh" && session.currentCommand != "fish") {
+                        Text(
+                            text = session.currentCommand,
+                            fontSize = 11.sp,
+                            color = Color(0xFFFFC107),
+                            maxLines = 1
+                        )
+                    }
+                    Text(
+                        text = "${session.windows} win",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
-            if (session.attached) {
-                AssistChip(
-                    onClick = {},
-                    label = { Text("attached") }
-                )
-            }
-            IconButton(onClick = onDelete) {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = "Delete session",
-                    tint = MaterialTheme.colorScheme.error
-                )
+
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Status badge
+                if (session.attached) {
+                    Text(
+                        text = "attached",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                if (session.currentCommand.isNotEmpty() && session.currentCommand != "bash" && session.currentCommand != "zsh" && session.currentCommand != "fish") {
+                    Text(
+                        text = "Running",
+                        fontSize = 10.sp,
+                        color = Color(0xFFFFC107)
+                    )
+                } else {
+                    Text(
+                        text = "Idle",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Delete session",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
     }

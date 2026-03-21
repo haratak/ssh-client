@@ -133,8 +133,10 @@ fun AppNavigation() {
         )
     }
 
-    // Track which tmux session was selected
+    // Track which tmux session was selected and its info
     var activeTmuxSession by remember { mutableStateOf<String?>(null) }
+    var activeSessionCwd by remember { mutableStateOf("") }
+    var activeSessionBranch by remember { mutableStateOf("") }
 
     NavHost(navController = navController, startDestination = "connect") {
         // Login screen (SSH connection)
@@ -169,6 +171,9 @@ fun AppNavigation() {
                 isLoading = isLoading,
                 onSessionClick = { sessionName ->
                     activeTmuxSession = sessionName
+                    val info = tmuxSessions.find { it.name == sessionName }
+                    activeSessionCwd = info?.cwd ?: ""
+                    activeSessionBranch = info?.gitBranch ?: ""
                     connectViewModel.attachTmuxSession(sessionName) {
                         navController.navigate("session_detail")
                     }
@@ -222,6 +227,8 @@ fun AppNavigation() {
                     terminalSession = ts,
                     sshSessionManager = sshSessionManager,
                     connectionState = connectionState,
+                    cwd = activeSessionCwd,
+                    gitBranch = activeSessionBranch,
                     onReconnect = {
                         connectViewModel.reconnect {
                             ts.reconnect()

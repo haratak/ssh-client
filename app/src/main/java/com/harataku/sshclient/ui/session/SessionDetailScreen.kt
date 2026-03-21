@@ -44,6 +44,8 @@ fun SessionDetailScreen(
     onReconnect: () -> Unit,
     onDisconnect: () -> Unit,
     onBack: () -> Unit,
+    cwd: String = "",
+    gitBranch: String = "",
     modifier: Modifier = Modifier
 ) {
     var selectedTab by remember { mutableStateOf(SessionTab.AGENT) }
@@ -97,7 +99,9 @@ fun SessionDetailScreen(
             sessionName = sessionName,
             host = host,
             connectionState = connectionState,
-            onBack = onBack
+            onBack = onBack,
+            cwd = cwd,
+            gitBranch = gitBranch
         )
 
         // Main content area
@@ -205,7 +209,9 @@ private fun SessionHeader(
     sessionName: String,
     host: String,
     connectionState: ConnectionState,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    cwd: String = "",
+    gitBranch: String = ""
 ) {
     Row(
         modifier = Modifier
@@ -228,11 +234,31 @@ private fun SessionHeader(
                 color = Color.White,
                 fontSize = 14.sp
             )
-            Text(
-                text = host,
-                color = Color(0xFF888888),
-                fontSize = 11.sp
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = host,
+                    color = Color(0xFF888888),
+                    fontSize = 11.sp
+                )
+                if (gitBranch.isNotEmpty()) {
+                    Text(
+                        text = gitBranch,
+                        color = Color(0xFF4CAF50),
+                        fontSize = 11.sp
+                    )
+                }
+            }
+            if (cwd.isNotEmpty()) {
+                val shortCwd = cwd.split("/").takeLast(2).joinToString("/")
+                Text(
+                    text = shortCwd,
+                    color = Color(0xFF666666),
+                    fontSize = 10.sp
+                )
+            }
         }
         ConnectionBadge(connectionState)
     }

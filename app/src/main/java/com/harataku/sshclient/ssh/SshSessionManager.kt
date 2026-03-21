@@ -56,18 +56,33 @@ class SshSessionManager {
      */
     suspend fun listTmuxSessions(): List<TmuxSessionInfo> = withContext(Dispatchers.IO) {
         try {
-            val output = exec("tmux list-sessions -F '#{session_id}:#{session_name}:#{session_windows}:#{session_attached}'")
+            val output = exec("tmux list-sessions -F '#{session_id}:#{session_name}:#{session_windows}:#{session_attached}:#{pane_current_path}:#{pane_current_command}'")
             if (output.isBlank()) return@withContext emptyList()
-            output.lines().mapNotNull { line ->
-                val parts = line.split(":", limit = 4)
+            val sessions = output.lines().mapNotNull { line ->
+                val parts = line.split(":", limit = 6)
                 if (parts.size >= 4) {
                     TmuxSessionInfo(
                         id = parts[0],
                         name = parts[1],
                         windows = parts[2].toIntOrNull() ?: 0,
-                        attached = parts[3] == "1"
+                        attached = parts[3] == "1",
+                        cwd = parts.getOrElse(4) { "" },
+                        currentCommand = parts.getOrElse(5) { "" }
                     )
                 } else null
+            }
+            // Fetch git branch for each session's cwd
+            sessions.map { session ->
+                if (session.cwd.isNotEmpty()) {
+                    try {
+                        val branch = exec("cd '${session.cwd.replace("'", "'\\''")}' && git branch --show-current 2>/dev/null")
+                        session.copy(gitBranch = branch)
+                    } catch (_: Exception) {
+                        session
+                    }
+                } else {
+                    session
+                }
             }
         } catch (e: Exception) {
             Log.d("SSH", "No tmux sessions: ${e.message}")
