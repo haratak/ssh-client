@@ -71,14 +71,16 @@ class TerminalView @JvmOverloads constructor(
 
     private val scroller = OverScroller(context)
 
-    // Cursor swipe state
+    // Swipe state
     private var swiping = false
-    private var swipeHorizontal = false
     private var swipeAccumX = 0f
     private var swipeAccumY = 0f
+
+    // Long-press cursor mode: after long press, swipe sends arrow keys
+    private var longPressActive = false
     private var lastCursorDirection: String? = null
     private val cursorRepeatHandler = Handler(Looper.getMainLooper())
-    private val cursorRepeatDelay = 80L // ms between repeats
+    private val cursorRepeatDelay = 80L
     private val cursorRepeatRunnable = object : Runnable {
         override fun run() {
             lastCursorDirection?.let { dir ->
@@ -88,51 +90,71 @@ class TerminalView @JvmOverloads constructor(
         }
     }
 
-    // Two-finger scroll state
-    private var twoFingerScrolling = false
-    private var twoFingerLastY = 0f
-    private var twoFingerAccumY = 0f
-
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
-            if (selecting || twoFingerScrolling) return true
+            if (selecting) return true
 
-            // Determine direction on first scroll event
+            if (longPressActive) {
+                // After long press: swipe sends arrow keys
+                if (!swiping) {
+                    swiping = true
+                    swipeAccumX = 0f
+                    swipeAccumY = 0f
+                }
+
+                // Horizontal cursor movement
+                swipeAccumX += -distanceX
+                val hSteps = (swipeAccumX / charWidth).toInt()
+                if (hSteps != 0) {
+                    val dir = if (hSteps > 0) "\u001b[C" else "\u001b[D"
+                    repeat(abs(hSteps)) { terminalSession?.writeInput(dir) }
+                    swipeAccumX -= hSteps * charWidth
+                    hapticTick()
+                    lastCursorDirection = dir
+                    cursorRepeatHandler.removeCallbacks(cursorRepeatRunnable)
+                    cursorRepeatHandler.postDelayed(cursorRepeatRunnable, 400)
+                }
+
+                // Vertical cursor movement
+                swipeAccumY += -distanceY
+                val vSteps = (swipeAccumY / charHeight).toInt()
+                if (vSteps != 0) {
+                    val dir = if (vSteps > 0) "\u001b[B" else "\u001b[A"
+                    repeat(abs(vSteps)) { terminalSession?.writeInput(dir) }
+                    swipeAccumY -= vSteps * charHeight
+                    hapticTick()
+                    lastCursorDirection = dir
+                    cursorRepeatHandler.removeCallbacks(cursorRepeatRunnable)
+                    cursorRepeatHandler.postDelayed(cursorRepeatRunnable, 400)
+                }
+                return true
+            }
+
+            // Normal swipe: horizontal = cursor left/right, vertical = scroll
             if (!swiping) {
                 swiping = true
-                swipeHorizontal = abs(distanceX) > abs(distanceY)
                 swipeAccumX = 0f
                 swipeAccumY = 0f
             }
 
-            if (swipeHorizontal) {
-                // Horizontal swipe → cursor left/right
-                swipeAccumX += -distanceX
-                val steps = (swipeAccumX / charWidth).toInt()
-                if (steps != 0) {
-                    val dir = if (steps > 0) "\u001b[C" else "\u001b[D"
-                    repeat(abs(steps)) { terminalSession?.writeInput(dir) }
-                    swipeAccumX -= steps * charWidth
-                    hapticTick()
-                    // Start repeat if holding
-                    lastCursorDirection = dir
-                    cursorRepeatHandler.removeCallbacks(cursorRepeatRunnable)
-                    cursorRepeatHandler.postDelayed(cursorRepeatRunnable, 400)
-                }
-            } else {
-                // Vertical swipe → cursor up/down
-                swipeAccumY += -distanceY
-                val steps = (swipeAccumY / charHeight).toInt()
-                if (steps != 0) {
-                    val dir = if (steps > 0) "\u001b[B" else "\u001b[A"
-                    repeat(abs(steps)) { terminalSession?.writeInput(dir) }
-                    swipeAccumY -= steps * charHeight
-                    hapticTick()
-                    lastCursorDirection = dir
-                    cursorRepeatHandler.removeCallbacks(cursorRepeatRunnable)
-                    cursorRepeatHandler.postDelayed(cursorRepeatRunnable, 400)
-                }
+            // Horizontal swipe → cursor left/right
+            swipeAccumX += -distanceX
+            val hSteps = (swipeAccumX / charWidth).toInt()
+            if (hSteps != 0) {
+                val dir = if (hSteps > 0) "\u001b[C" else "\u001b[D"
+                repeat(abs(hSteps)) { terminalSession?.writeInput(dir) }
+                swipeAccumX -= hSteps * charWidth
+                hapticTick()
             }
+
+            // Vertical swipe → scroll
+            swipeAccumY += distanceY
+            val vSteps = (swipeAccumY / charHeight).toInt()
+            if (vSteps != 0) {
+                adjustScroll(vSteps)
+                swipeAccumY -= vSteps * charHeight
+            }
+
             return true
         }
 
@@ -169,17 +191,12 @@ class TerminalView @JvmOverloads constructor(
         }
 
         override fun onLongPress(e: MotionEvent) {
-            if (swiping || twoFingerScrolling) return
+            if (swiping) return
             hapticClick()
-            val col = (e.x / charWidth).toInt()
-            val row = (e.y / charHeight).toInt() - scrollOffset
-            selStartCol = col
-            selStartRow = row
-            selEndCol = col
-            selEndRow = row
-            selecting = true
-            startActionMode()
-            invalidate()
+            // Activate cursor mode: subsequent swipes send arrow keys
+            longPressActive = true
+            swipeAccumX = 0f
+            swipeAccumY = 0f
         }
 
         override fun onDown(e: MotionEvent): Boolean = true
@@ -358,61 +375,38 @@ class TerminalView @JvmOverloads constructor(
         }
     }
 
-    private fun enterTwoFingerScroll(event: MotionEvent) {
-        twoFingerScrolling = true
-        twoFingerLastY = (event.getY(0) + event.getY(1)) / 2f
-        twoFingerAccumY = 0f
-        cursorRepeatHandler.removeCallbacks(cursorRepeatRunnable)
-        lastCursorDirection = null
-        swiping = false
-        if (selecting) clearSelection()
-        // Send a fake ACTION_CANCEL to reset GestureDetector's internal state
-        val cancel = MotionEvent.obtain(event).apply { action = MotionEvent.ACTION_CANCEL }
-        gestureDetector.onTouchEvent(cancel)
-        cancel.recycle()
+    private fun startSelectionAt(event: MotionEvent) {
+        hapticClick()
+        // Use midpoint of two fingers
+        val x = (event.getX(0) + event.getX(1)) / 2f
+        val y = (event.getY(0) + event.getY(1)) / 2f
+        val col = (x / charWidth).toInt()
+        val row = (y / charHeight).toInt() - scrollOffset
+        selStartCol = col
+        selStartRow = row
+        selEndCol = col
+        selEndRow = row
+        selecting = true
+        startActionMode()
+        invalidate()
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        val pointerCount = event.pointerCount
-
         // Prevent parent from intercepting our touch events
         parent?.requestDisallowInterceptTouchEvent(true)
 
-        // Detect two-finger gesture on any event with 2+ pointers
-        if (pointerCount >= 2 && !twoFingerScrolling) {
-            enterTwoFingerScroll(event)
+        // Two-finger tap starts text selection
+        if (event.pointerCount >= 2 && event.actionMasked == MotionEvent.ACTION_POINTER_DOWN) {
+            startSelectionAt(event)
             return true
         }
 
-        if (twoFingerScrolling) {
-            when (event.actionMasked) {
-                MotionEvent.ACTION_MOVE -> {
-                    if (pointerCount >= 2) {
-                        val midY = (event.getY(0) + event.getY(1)) / 2f
-                        val dy = twoFingerLastY - midY
-                        twoFingerLastY = midY
-                        twoFingerAccumY += dy
-                        val rows = (twoFingerAccumY / charHeight).toInt()
-                        if (rows != 0) {
-                            adjustScroll(rows)
-                            twoFingerAccumY -= rows * charHeight
-                        }
-                    }
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    twoFingerScrolling = false
-                }
-            }
-            return true
-        }
-
-        // Single finger events
         when (event.actionMasked) {
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 cursorRepeatHandler.removeCallbacks(cursorRepeatRunnable)
                 lastCursorDirection = null
                 swiping = false
-                swipeHorizontal = false
+                longPressActive = false
             }
             MotionEvent.ACTION_MOVE -> {
                 if (selecting) {

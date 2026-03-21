@@ -117,17 +117,21 @@ class SshSessionManager {
     /**
      * Create a new tmux session via exec channel with PTY.
      */
-    suspend fun startTmuxNewSession(sessionName: String? = null) = withContext(Dispatchers.IO) {
+    suspend fun startTmuxNewSession(sessionName: String? = null, directory: String? = null) = withContext(Dispatchers.IO) {
         val client = sshClient ?: throw IllegalStateException("Not connected")
         val sess = client.startSession()
         try { sess.setEnvVar("LANG", "en_US.UTF-8") } catch (_: Exception) {}
         sess.allocatePTY("xterm-256color", 80, 24, 0, 0, mapOf())
-        val tmuxCmd = if (sessionName != null) {
-            "tmux -u new-session -s '${sessionName.replace("'", "'\\''")}'"
-        } else {
-            "tmux -u new-session"
+        val parts = mutableListOf("tmux", "-u", "new-session")
+        if (sessionName != null) {
+            parts.add("-s")
+            parts.add("'${sessionName.replace("'", "'\\''")}'")
         }
-        val cmd = sess.exec(tmuxCmd)
+        if (directory != null) {
+            parts.add("-c")
+            parts.add("'${directory.replace("'", "'\\''")}'")
+        }
+        val cmd = sess.exec(parts.joinToString(" "))
         session = sess
         sessionChannel = sess as SessionChannel
         _inputStream = cmd.inputStream

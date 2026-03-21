@@ -25,9 +25,11 @@ fun SessionListScreen(
     tmuxSessions: List<TmuxSessionInfo>,
     isLoading: Boolean,
     onSessionClick: (String) -> Unit,
-    onNewSession: () -> Unit,
+    onNewSession: (String?) -> Unit,
     onDeleteSession: (String) -> Unit,
     onDisconnect: () -> Unit,
+    directories: List<String> = emptyList(),
+    onLoadDirectories: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -35,6 +37,7 @@ fun SessionListScreen(
         .getPackageInfo(context.packageName, 0).versionName ?: ""
 
     var sessionToDelete by remember { mutableStateOf<String?>(null) }
+    var showDirPicker by remember { mutableStateOf(false) }
 
     if (sessionToDelete != null) {
         AlertDialog(
@@ -57,6 +60,51 @@ fun SessionListScreen(
         )
     }
 
+    if (showDirPicker) {
+        AlertDialog(
+            onDismissRequest = { showDirPicker = false },
+            title = { Text("New Session") },
+            text = {
+                Column {
+                    Text("Select working directory:", fontSize = 13.sp)
+                    Spacer(Modifier.height(8.dp))
+                    // Home (default)
+                    TextButton(onClick = {
+                        showDirPicker = false
+                        onNewSession(null)
+                    }) {
+                        Text("~ (home)", modifier = Modifier.fillMaxWidth())
+                    }
+                    // Directory list
+                    if (directories.isEmpty()) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp).padding(8.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                            items(directories) { dir ->
+                                TextButton(onClick = {
+                                    showDirPicker = false
+                                    onNewSession(dir)
+                                }) {
+                                    Text(
+                                        dir.substringAfterLast("/"),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        fontSize = 14.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showDirPicker = false }) { Text("Cancel") }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -69,7 +117,10 @@ fun SessionListScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onNewSession) {
+            FloatingActionButton(onClick = {
+                showDirPicker = true
+                onLoadDirectories()
+            }) {
                 Icon(Icons.Default.Add, contentDescription = "New Session")
             }
         }
@@ -96,7 +147,7 @@ fun SessionListScreen(
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Button(onClick = onNewSession) {
+                        Button(onClick = { onNewSession(null) }) {
                             Text("New Session")
                         }
                     }

@@ -165,10 +165,13 @@ fun AppNavigation() {
         composable("sessions_list") {
             val tmuxSessions by connectViewModel.tmuxSessions.collectAsState()
             val isLoading by connectViewModel.sessionsLoading.collectAsState()
+            val directories by connectViewModel.directories.collectAsState()
 
             SessionListScreen(
                 tmuxSessions = tmuxSessions,
                 isLoading = isLoading,
+                directories = directories,
+                onLoadDirectories = { connectViewModel.loadDirectories() },
                 onSessionClick = { sessionName ->
                     activeTmuxSession = sessionName
                     val info = tmuxSessions.find { it.name == sessionName }
@@ -178,8 +181,8 @@ fun AppNavigation() {
                         navController.navigate("session_detail")
                     }
                 },
-                onNewSession = {
-                    connectViewModel.createTmuxSession {
+                onNewSession = { directory ->
+                    connectViewModel.createTmuxSession(directory = directory) {
                         activeTmuxSession = connectViewModel.currentSessionName.value
                         navController.navigate("session_detail")
                     }

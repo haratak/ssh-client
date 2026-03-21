@@ -177,11 +177,24 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun createTmuxSession(onReady: () -> Unit) {
+    private val _directories = MutableStateFlow<List<String>>(emptyList())
+    val directories: StateFlow<List<String>> = _directories
+
+    fun loadDirectories() {
         viewModelScope.launch {
             try {
-                sshSessionManager.startTmuxNewSession()
-                // Refresh sessions to get the new session name
+                val output = sshSessionManager.exec("ls -1d ~/*/  2>/dev/null | sed 's|/$||'")
+                _directories.value = output.lines().filter { it.isNotBlank() }
+            } catch (e: Exception) {
+                Log.e("SSH", "Failed to list directories", e)
+            }
+        }
+    }
+
+    fun createTmuxSession(directory: String? = null, onReady: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                sshSessionManager.startTmuxNewSession(directory = directory)
                 _tmuxSessions.value = sshSessionManager.listTmuxSessions()
                 _currentSessionName.value = _tmuxSessions.value.lastOrNull()?.name
                 onReady()

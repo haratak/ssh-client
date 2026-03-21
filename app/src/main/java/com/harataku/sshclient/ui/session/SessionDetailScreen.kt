@@ -35,6 +35,38 @@ enum class SessionTab(val label: String) {
 }
 
 @Composable
+private fun GestureHelpDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Gestures") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                GestureHelpRow("Tap", "Mouse click + keyboard")
+                GestureHelpRow("Double tap", "Enter")
+                GestureHelpRow("Swipe horizontal", "Cursor left/right")
+                GestureHelpRow("Swipe vertical", "Scroll")
+                GestureHelpRow("Long press + swipe", "Arrow keys")
+                GestureHelpRow("2-finger tap", "Text selection")
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("OK") }
+        }
+    )
+}
+
+@Composable
+private fun GestureHelpRow(gesture: String, action: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(gesture, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+        Text(action, fontSize = 13.sp, color = Color(0xFF888888))
+    }
+}
+
+@Composable
 fun SessionDetailScreen(
     sessionName: String,
     host: String,
@@ -51,6 +83,11 @@ fun SessionDetailScreen(
     var selectedTab by remember { mutableStateOf(SessionTab.AGENT) }
     var terminalView by remember { mutableStateOf<TerminalView?>(null) }
     var composingText by remember { mutableStateOf("") }
+    var showGestureHelp by remember { mutableStateOf(false) }
+
+    if (showGestureHelp) {
+        GestureHelpDialog(onDismiss = { showGestureHelp = false })
+    }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var uploading by remember { mutableStateOf(false) }
@@ -101,7 +138,8 @@ fun SessionDetailScreen(
             connectionState = connectionState,
             onBack = onBack,
             cwd = cwd,
-            gitBranch = gitBranch
+            gitBranch = gitBranch,
+            onHelp = { showGestureHelp = true }
         )
 
         // Main content area
@@ -211,7 +249,8 @@ private fun SessionHeader(
     connectionState: ConnectionState,
     onBack: () -> Unit,
     cwd: String = "",
-    gitBranch: String = ""
+    gitBranch: String = "",
+    onHelp: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -259,6 +298,13 @@ private fun SessionHeader(
                     fontSize = 10.sp
                 )
             }
+        }
+        TextButton(
+            onClick = onHelp,
+            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+            modifier = Modifier.size(32.dp)
+        ) {
+            Text("?", color = Color(0xFF888888), fontSize = 14.sp)
         }
         ConnectionBadge(connectionState)
     }
