@@ -216,8 +216,8 @@ fun SessionDetailScreen(
             UploadingBar()
         }
 
-        // ModifierKeyBar for Agent tab
-        if (selectedTab == SessionTab.AGENT && terminalSession != null) {
+        // ModifierKeyBar (always visible to keep terminal size stable across tabs)
+        if (terminalSession != null) {
             ModifierKeyBar(
                 onShortcut = { action ->
                     when (action) {
