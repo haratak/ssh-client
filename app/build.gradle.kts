@@ -15,8 +15,8 @@ android {
         applicationId = "com.harataku.sshclient"
         minSdk = 36
         targetSdk = 36
-        versionCode = 80
-        versionName = "0.1.79"
+        versionCode = 81
+        versionName = "0.1.80"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

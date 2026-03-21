@@ -252,10 +252,14 @@ class TerminalView @JvmOverloads constructor(
     }
 
     private var redrawPending = false
+    private var resizeRedrawSuppressed = false
+    private val resizeRedrawHandler = Handler(Looper.getMainLooper())
 
     fun triggerRedraw() {
         // Auto-scroll to bottom when new data arrives and user is at bottom
         if (scrollOffset <= 1) scrollOffset = 0
+        // During resize, suppress intermediate redraws to prevent scroll-like appearance
+        if (resizeRedrawSuppressed) return
         // Batch redraws: only post one invalidate per frame
         if (!redrawPending) {
             redrawPending = true
@@ -271,6 +275,13 @@ class TerminalView @JvmOverloads constructor(
         if (w == 0 || h == 0) return
         val cols = (w / charWidth).toInt().coerceAtLeast(1)
         val rows = (h / charHeight).toInt().coerceAtLeast(1)
+        // Suppress redraws during resize to prevent scroll-like appearance
+        resizeRedrawSuppressed = true
+        resizeRedrawHandler.removeCallbacksAndMessages(null)
+        resizeRedrawHandler.postDelayed({
+            resizeRedrawSuppressed = false
+            invalidate()
+        }, 150)
         terminalSession?.resize(cols, rows)
     }
 
