@@ -161,9 +161,11 @@ fun SessionDetailScreen(
                     sshSessionManager = sshSessionManager,
                     onOpenInTerminal = { path ->
                         val escaped = path.replace("'", "'\\''")
-                        terminalSession?.writeInput("nvim -R '$escaped'")
-                        terminalSession?.writeByte(0x0D) // CR = Enter
                         selectedTab = SessionTab.AGENT
+                        scope.launch {
+                            kotlinx.coroutines.delay(300)
+                            terminalSession?.writeInput("nvim -R '$escaped'\r")
+                        }
                     },
                     modifier = Modifier.fillMaxSize()
                 )
