@@ -13,7 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -148,12 +148,12 @@ fun SessionDetailScreen(
                 .weight(1f)
                 .fillMaxWidth()
         ) {
-            // Agent view (always composed to keep TerminalView alive)
+            // Agent view (always rendered at z=0, other tabs overlay on top at z=1)
             if (terminalSession != null) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .then(if (selectedTab != SessionTab.AGENT) Modifier.alpha(0f) else Modifier)
+                        .zIndex(0f)
                 ) {
                     AndroidView(
                         factory = { ctx ->
@@ -193,19 +193,19 @@ fun SessionDetailScreen(
                 }
             }
 
-            // Other tab content
+            // Other tab content (overlays terminal at z=1)
             when (selectedTab) {
                 SessionTab.DIFF -> DiffTab(
                     sshSessionManager = sshSessionManager,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize().zIndex(1f)
                 )
                 SessionTab.FILES -> FilesTab(
                     sshSessionManager = sshSessionManager,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize().zIndex(1f)
                 )
                 SessionTab.LOGS -> LogsTab(
                     sshSessionManager = sshSessionManager,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize().zIndex(1f)
                 )
                 SessionTab.AGENT -> {}
             }
