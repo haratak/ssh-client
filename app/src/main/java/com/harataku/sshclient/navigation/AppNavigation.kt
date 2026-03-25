@@ -15,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -134,9 +135,10 @@ fun AppNavigation() {
     }
 
     // Track which tmux session was selected and its info
-    var activeTmuxSession by remember { mutableStateOf<String?>(null) }
-    var activeSessionCwd by remember { mutableStateOf("") }
-    var activeSessionBranch by remember { mutableStateOf("") }
+    // Use rememberSaveable so these survive process death (Activity recreation)
+    var activeTmuxSession by rememberSaveable { mutableStateOf<String?>(null) }
+    var activeSessionCwd by rememberSaveable { mutableStateOf("") }
+    var activeSessionBranch by rememberSaveable { mutableStateOf("") }
 
     NavHost(navController = navController, startDestination = "connect") {
         // Login screen (SSH connection)
@@ -211,8 +213,33 @@ fun AppNavigation() {
 
         // Session detail: 1 tmux session with Agent/Diff/Files/Logs
         composable("session_detail") {
-            val sessionName = activeTmuxSession ?: return@composable
+            val sessionName = activeTmuxSession
             val connectionState by connectViewModel.connectionState.collectAsState()
+
+            // If session name is lost (process death) or connection dropped to Idle,
+            // redirect to the appropriate screen
+            LaunchedEffect(sessionName, connectionState) {
+                if (sessionName == null) {
+                    // Session name lost — go back to session list (or connect if not connected)
+                    when (connectionState) {
+                        is ConnectionState.Connected -> {
+                            navController.navigate("sessions_list") {
+                                popUpTo("session_detail") { inclusive = true }
+                            }
+                        }
+                        is ConnectionState.Idle, is ConnectionState.Error -> {
+                            navController.navigate("connect") {
+                                popUpTo(0) { inclusive = true }
+                            }
+                        }
+                        else -> {} // Connecting/Reconnecting — wait
+                    }
+                    return@LaunchedEffect
+                }
+            }
+
+            if (sessionName == null) return@composable
+
             val terminalViewModel: TerminalViewModel = viewModel()
             val sshSessionManager = remember { connectViewModel.sshSessionManager }
             val termSession by terminalViewModel.terminalSessionFlow.collectAsState()
