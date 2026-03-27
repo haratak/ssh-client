@@ -261,6 +261,13 @@ fun AppNavigation() {
                     }
                 }
 
+                val tmuxSessions by connectViewModel.tmuxSessions.collectAsState()
+
+                // Refresh session list when entering detail screen
+                LaunchedEffect(sessionName) {
+                    connectViewModel.loadTmuxSessions()
+                }
+
                 SessionDetailScreen(
                     sessionName = sessionName,
                     host = "${connectViewModel.config.value.username}@${connectViewModel.config.value.host}",
@@ -269,6 +276,17 @@ fun AppNavigation() {
                     connectionState = connectionState,
                     cwd = activeSessionCwd,
                     gitBranch = activeSessionBranch,
+                    tmuxSessions = tmuxSessions,
+                    onSwitchSession = { newSessionName ->
+                        ts.suppressDisconnect = true
+                        val info = tmuxSessions.find { it.name == newSessionName }
+                        activeSessionCwd = info?.cwd ?: ""
+                        activeSessionBranch = info?.gitBranch ?: ""
+                        connectViewModel.switchTmuxSession(newSessionName) {
+                            activeTmuxSession = newSessionName
+                            terminalViewModel.reInit(sshSessionManager)
+                        }
+                    },
                     onReconnect = {
                         connectViewModel.reconnect {
                             ts.reconnect()

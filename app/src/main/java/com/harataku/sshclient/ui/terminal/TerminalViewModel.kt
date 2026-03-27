@@ -19,4 +19,8 @@ class TerminalViewModel : ViewModel() {
         if (_terminalSession.value != null) return
         _terminalSession.value = TerminalSession(sshSessionManager, viewModelScope)
     }
+
+    fun reInit(sshSessionManager: SshSessionManager) {
+        _terminalSession.value = TerminalSession(sshSessionManager, viewModelScope)
+    }
 }

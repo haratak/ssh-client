@@ -6,7 +6,10 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -16,11 +19,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.harataku.sshclient.ssh.SshSessionManager
 import com.harataku.sshclient.terminal.TerminalSession
+import com.harataku.sshclient.tmux.TmuxSessionInfo
 import com.harataku.sshclient.ui.connect.ConnectionState
 import com.harataku.sshclient.ui.terminal.ModifierKeyBar
 import com.harataku.sshclient.ui.terminal.ShortcutAction
@@ -66,6 +72,7 @@ private fun GestureHelpRow(gesture: String, action: String) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SessionDetailScreen(
     sessionName: String,
@@ -76,6 +83,8 @@ fun SessionDetailScreen(
     onReconnect: () -> Unit,
     onDisconnect: () -> Unit,
     onBack: () -> Unit,
+    tmuxSessions: List<TmuxSessionInfo> = emptyList(),
+    onSwitchSession: (String) -> Unit = {},
     cwd: String = "",
     gitBranch: String = "",
     modifier: Modifier = Modifier
@@ -124,6 +133,25 @@ fun SessionDetailScreen(
         }
     }
 
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            SessionDrawerContent(
+                currentSession = sessionName,
+                tmuxSessions = tmuxSessions,
+                onSessionClick = { selected ->
+                    scope.launch {
+                        drawerState.close()
+                        if (selected != sessionName) {
+                            onSwitchSession(selected)
+                        }
+                    }
+                }
+            )
+        }
+    ) {
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -239,6 +267,72 @@ fun SessionDetailScreen(
             selectedTab = selectedTab,
             onTabSelected = { selectedTab = it }
         )
+    }
+    } // ModalNavigationDrawer
+}
+
+@Composable
+private fun SessionDrawerContent(
+    currentSession: String,
+    tmuxSessions: List<TmuxSessionInfo>,
+    onSessionClick: (String) -> Unit
+) {
+    ModalDrawerSheet(
+        drawerContainerColor = Color(0xFF252525),
+        modifier = Modifier.width(280.dp)
+    ) {
+        Text(
+            "Sessions",
+            color = Color.White,
+            fontSize = 16.sp,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+        )
+        HorizontalDivider(color = Color(0xFF444444))
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(vertical = 4.dp)
+        ) {
+            items(tmuxSessions, key = { it.id }) { session ->
+                val isActive = session.name == currentSession
+                NavigationDrawerItem(
+                    label = {
+                        Column {
+                            Text(
+                                session.name,
+                                color = if (isActive) Color(0xFF64B5F6) else Color.White,
+                                fontSize = 14.sp
+                            )
+                            if (session.cwd.isNotEmpty()) {
+                                val shortCwd = session.cwd.split("/").takeLast(2).joinToString("/")
+                                Text(
+                                    shortCwd,
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFF888888),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            if (session.gitBranch.isNotEmpty()) {
+                                Text(
+                                    session.gitBranch,
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF4CAF50),
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    },
+                    selected = isActive,
+                    onClick = { onSessionClick(session.name) },
+                    colors = NavigationDrawerItemDefaults.colors(
+                        selectedContainerColor = Color(0xFF333333),
+                        unselectedContainerColor = Color.Transparent
+                    ),
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+            }
+        }
     }
 }
 
