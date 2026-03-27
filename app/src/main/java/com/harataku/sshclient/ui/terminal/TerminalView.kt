@@ -402,9 +402,26 @@ class TerminalView @JvmOverloads constructor(
         invalidate()
     }
 
+    // Edge zone width for drawer gesture (dp → px)
+    private val drawerEdgeWidth = (24 * context.resources.displayMetrics.density)
+    private var touchStartX = 0f
+    private var drawerGesture = false
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        // Prevent parent from intercepting our touch events
-        parent?.requestDisallowInterceptTouchEvent(true)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                touchStartX = event.x
+                // If touch starts near left edge, let the drawer handle it
+                drawerGesture = touchStartX < drawerEdgeWidth
+            }
+        }
+
+        // Allow parent (drawer) to intercept only for edge swipes
+        parent?.requestDisallowInterceptTouchEvent(!drawerGesture)
+
+        if (drawerGesture) {
+            return false
+        }
 
         // Two-finger tap starts text selection
         if (event.pointerCount >= 2 && event.actionMasked == MotionEvent.ACTION_POINTER_DOWN) {
