@@ -130,21 +130,10 @@ class TerminalView @JvmOverloads constructor(
                 return true
             }
 
-            // Normal swipe: horizontal = cursor left/right, vertical = scroll
+            // Normal swipe: vertical = scroll (horizontal swipe is handled by drawer)
             if (!swiping) {
                 swiping = true
-                swipeAccumX = 0f
                 swipeAccumY = 0f
-            }
-
-            // Horizontal swipe → cursor left/right
-            swipeAccumX += -distanceX
-            val hSteps = (swipeAccumX / charWidth).toInt()
-            if (hSteps != 0) {
-                val dir = if (hSteps > 0) "\u001b[C" else "\u001b[D"
-                repeat(abs(hSteps)) { terminalSession?.writeInput(dir) }
-                swipeAccumX -= hSteps * charWidth
-                hapticTick()
             }
 
             // Vertical swipe → scroll
@@ -402,26 +391,8 @@ class TerminalView @JvmOverloads constructor(
         invalidate()
     }
 
-    // Edge zone width for drawer gesture (dp → px)
-    private val drawerEdgeWidth = (24 * context.resources.displayMetrics.density)
-    private var touchStartX = 0f
-    private var drawerGesture = false
-
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                touchStartX = event.x
-                // If touch starts near left edge, let the drawer handle it
-                drawerGesture = touchStartX < drawerEdgeWidth
-            }
-        }
-
-        // Allow parent (drawer) to intercept only for edge swipes
-        parent?.requestDisallowInterceptTouchEvent(!drawerGesture)
-
-        if (drawerGesture) {
-            return false
-        }
+        // Don't block parent interception — allows ModalNavigationDrawer to handle horizontal swipes
 
         // Two-finger tap starts text selection
         if (event.pointerCount >= 2 && event.actionMasked == MotionEvent.ACTION_POINTER_DOWN) {
